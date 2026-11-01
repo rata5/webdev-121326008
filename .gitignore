@@ -19,3 +19,6 @@ coverage/
 
 # editor and OS files
 .DS_Store
+
+# the local SQLite database
+data/

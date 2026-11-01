@@ -5,19 +5,19 @@ Read this file at the start of every session. Keep it short and correct; update 
 ## Project
 <!-- One or two sentences: what the app does and for whom. Link SPEC.md. -->
 See `SPEC.md` for goals, non-goals and acceptance criteria.
-The app is for the teachesrs to book lab rooms.
+LabBookingBg lets teachers see which university labs are free on a given day and book a one-hour slot; admins manage the labs.
 
 ## Commands
 <!-- How to install, run, test. Keep these exact and working. -->
 - Install: `npm install`
-- Run: `npm start`
+- Run: `npm start` (serves http://localhost:3000; migrations run at start)
 - Test: `npm test`
 - Coverage: `npm run coverage`
 - MCP server: `npm run mcp`
 
 ## Conventions
 <!-- Folder layout, naming, where business rules live, how errors are returned to the client. -->
-- Three layers, and they do not skip each other: `routes/` → `services/` → `data/`.
+- Three layers, and they do not skip each other: `src/routes/` → `src/services/` → `src/data/`.
   No SQL outside `src/data/`.
 - Every schema change is a new numbered file in `migrations/`. Never edit one that has run.
 - Business rules go in `src/services/`, and every rule gets a test that names it.

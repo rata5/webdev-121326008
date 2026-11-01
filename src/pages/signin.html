@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in · LabBookingBg</title>
+  <link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+  <main>
+    <div class="card narrow">
+      <h1 id="title">Sign in</h1>
+      <form id="auth-form" novalidate>
+        <label for="email">Email</label>
+        <input id="email" name="email" type="email" autocomplete="email" required>
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" minlength="8" required>
+        <p class="muted" id="password-hint" hidden>At least 8 characters.</p>
+        <p style="margin-top: var(--space-4)"><button id="submit" type="submit">Sign in</button></p>
+        <div id="message" class="message error" role="alert" aria-live="polite"></div>
+      </form>
+      <p class="muted">
+        <span id="switch-text">No account yet?</span>
+        <button id="switch" type="button" class="secondary">Create an account</button>
+      </p>
+    </div>
+  </main>
+  <script src="/assets/signin.js"></script>
+</body>
+</html>

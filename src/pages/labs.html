@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Labs · LabBookingBg</title>
+  <link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+  <header class="bar">
+    <strong>LabBookingBg</strong>
+    <span><span id="who" class="muted"></span> <button id="signout" type="button" class="secondary">Sign out</button></span>
+  </header>
+  <main>
+    <h1>Labs</h1>
+    <div class="toolbar">
+      <div>
+        <label for="date">Date</label>
+        <input id="date" type="date">
+      </div>
+      <p class="muted">Slots are one hour, 08:00–20:00, Monday to Friday.</p>
+    </div>
+    <div id="status" aria-live="polite"></div>
+    <section id="labs" class="labs" aria-label="Labs and their slots"></section>
+  </main>
+  <script src="/assets/labs.js"></script>
+</body>
+</html>

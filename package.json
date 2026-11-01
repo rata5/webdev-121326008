@@ -1,13 +1,15 @@
 {
   "name": "webdev-121326008",
   "version": "1.0.0",
-  "description": "This repository is your workspace for the whole course: Exercise 1 in `mcp-server/`, and your project (Exercises 2–5) in the rest of it. Everything runs in your browser through GitHub Codespaces, so nothing needs to be installed on your laptop.",
-  "main": "index.js",
+  "description": "LabBookingBg: book a university lab for a one-hour slot.",
+  "main": "src/server.js",
   "directories": {
     "doc": "docs"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node --env-file-if-exists=.env src/server.js",
+    "test": "vitest run",
+    "coverage": "vitest run --coverage",
     "mcp": "node mcp-server/server.js"
   },
   "repository": {
@@ -20,5 +22,15 @@
   "bugs": {
     "url": "https://github.com/rata5/webdev-121326008/issues"
   },
-  "homepage": "https://github.com/rata5/webdev-121326008#readme"
+  "homepage": "https://github.com/rata5/webdev-121326008#readme",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^13.0.3",
+    "express": "^5.3.0"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^5.0.5",
+    "supertest": "^7.3.1",
+    "vitest": "^5.0.5"
+  }
 }
