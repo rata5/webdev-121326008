@@ -4,6 +4,7 @@ function createBookingStore(db) {
   const UPCOMING = '(b.date > ? OR (b.date = ? AND b.start_hour > ?))';
   const byId = db.prepare('SELECT id, user_id, lab_id, date, start_hour FROM bookings WHERE id = ?');
   const add = db.prepare('INSERT INTO bookings (user_id, lab_id, date, start_hour) VALUES (?, ?, ?, ?)');
+
   return {
     labExists: (labId) => db.prepare('SELECT 1 FROM labs WHERE id = ?').get(labId) !== undefined,
 
