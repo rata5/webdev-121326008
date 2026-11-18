@@ -49,3 +49,12 @@ button[disabled] { opacity: 0.6; cursor: progress; }
 .slot.taken { background: var(--taken-bg); color: var(--taken-text); text-decoration: line-through; }
 .skeleton { min-height: 160px; background: var(--taken-bg); border-radius: var(--radius); }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+.message.success { background: var(--free-bg); color: var(--free-text); }
+#notice .message { margin: 0 0 var(--space-3); }
+a { color: var(--accent); }
+.mine { margin-bottom: var(--space-4); }
+.bookings { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--space-2); }
+.booking { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; justify-content: space-between;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-2) var(--space-3); }
+.slot .book { display: block; width: 100%; margin-top: var(--space-1); }

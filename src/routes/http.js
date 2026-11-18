@@ -3,7 +3,17 @@ const crypto = require('node:crypto');
 const { AppError } = require('../services/errors');
 
 const COOKIE = 'lb_session';
-const STATUS = { VALIDATION: 400, WRONG_CREDENTIALS: 401, EMAIL_TAKEN: 409 };
+const STATUS = {
+  VALIDATION: 400,
+  WRONG_CREDENTIALS: 401,
+  FORBIDDEN: 403,
+  NOT_FOUND: 404,
+  EMAIL_TAKEN: 409,
+  SLOT_TAKEN: 409,
+  TOO_MANY_BOOKINGS: 409,
+  CLOSED: 422,
+  PAST_SLOT: 422,
+};
 
 function sign(value, secret) {
   return crypto.createHmac('sha256', secret).update(value).digest('hex');

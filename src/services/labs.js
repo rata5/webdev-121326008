@@ -51,4 +51,4 @@ function createLabService({ labs, now = () => new Date(), timeZone = 'Europe/Sof
   return { listWithSlots };
 }
 
-module.exports = { createLabService, FIRST_HOUR, LAST_HOUR };
+module.exports = { createLabService, parseDate, localNow, FIRST_HOUR, LAST_HOUR };
