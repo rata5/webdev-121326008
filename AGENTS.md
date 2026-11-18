@@ -63,6 +63,11 @@ that talks to the database directly is a second, unguarded way into your data: n
 - adding, renaming or removing an MCP tool
 - changing a coverage threshold
 - sending user data to a third-party model
+- running any git command that writes: commit, reset, clean, checkout, push
+- changing the bookings table or its UNIQUE (lab_id, date, start_hour) constraint
+- changing a status code or a user-facing message that SPEC.md names
+- editing or deleting a test whose title names an AC id
+- writing to the database file in data/ outside the app (sqlite3, scripts)
 
 ## Never
 - commit secrets, passwords, API keys or an OAuth client secret

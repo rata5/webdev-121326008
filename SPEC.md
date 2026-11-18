@@ -22,7 +22,7 @@ Lab booking.
 ## Constraints
 - Bookings are stored in a database file and survive a server restart
 - A slot is one hour, between 08:00 and 20:00, Monday to Friday
-- A user cannot book a slot in the past; the API answers 400
+- A user cannot book a slot in the past; the API answers 423
 - A user can hold at most 3 upcoming bookings; the 4th is refused
 - Only the user who made a booking (or an admin) can cancel it; anyone else gets 403
 
@@ -41,7 +41,7 @@ Lab booking.
 - Provider: Sign in with Google, the authorization-code flow, on the server.
 - Linking: matched on Google's account id. An address Google has not marked as verified is
   never linked to an existing account.
-  
+
 ## MCP tools
 <!-- At least three tools your own MCP server exposes over this project's data.
      Each tool calls the same service functions the HTTP API calls, so the same rules apply.
@@ -72,24 +72,30 @@ Lab booking.
 ## Acceptance criteria
 <!-- Every criterion carries an id. A test proves it by naming that id in its title.
      Say who acts, what they see, and what must be true in the database. -->
-- [AC-1] A signed-in user who books a free slot sees "Booking confirmed", and one new row appears in `bookings` with their user id, the lab id, the date and the hour.
-- [AC-2] A second user who tries to book the same lab for the same slot sees "This slot is already taken" (HTTP 409), and no new row appears in `bookings`.
-- [AC-3] A signed-in user who tries to book a slot in the past sees "You cannot book a past slot" (HTTP 400), and no new row appears in `bookings`.
-- [AC-4] A user who already has 3 upcoming bookings and tries to book a 4th sees "You can have at most 3 upcoming bookings", and no new row appears in `bookings`.
-- [AC-5] A user who cancels their own booking sees it disappear from "My bookings", the slot shows as free again, and the row is removed from `bookings`.
-- [AC-6] A user who tries to cancel another user's booking gets HTTP 403, and the row in `bookings` is unchanged.
+
+### Slice 1: sign-in and the lab list
+- [AC-1] A signed-in user who books a free slot (POST /api/bookings) gets 201 and sees "Booking confirmed", and one new row appears in bookings with their user id, the lab id, the date and the hour.
+- [AC-2] A second user who tries to book the same lab for the same slot gets 409 and sees "This slot is already taken", and no new row appears in bookings.
+- [AC-3] A signed-in user who tries to book a slot that has already started gets 422 and sees "You cannot book a past slot", and no new row appears in bookings.
+- [AC-4] A user who already has 3 upcoming bookings and tries to book a 4th gets 409 and sees "You can have at most 3 upcoming bookings", and no new row appears in bookings. Bookings whose slot has started do not count.
+- [AC-5] A user who cancels their own booking (DELETE /api/bookings/:id) gets 204, sees it disappear from "My bookings", the slot shows as free again, and the row is removed from bookings.
+- [AC-6] A signed-in user who tries to cancel another user's booking gets 403 and sees "You can only cancel your own bookings", and the row in bookings is unchanged. An admin may cancel any booking.
 - [AC-7] An admin who adds a lab with a name, room number and capacity sees it in the lab list, and one new row appears in `labs` with those values.
 - [AC-8] A non-admin user who tries to add a lab gets HTTP 403, and no new row appears in `labs`.
 - [AC-9] A user with a password account who signs in with Google using the same address, which Google marks as verified, lands in that same account: no new row appears in `users`, and one `google` row appears in `identities`.
 - [AC-10] With no `GEMINI_API_KEY` set, a user who asks "Find me a slot" sees "The assistant is unavailable right now, you can still pick a slot from the list." and up to 3 free slots for the chosen date, read from the database.
 - [AC-11] The MCP tool `book_slot`, asked to book a slot that is already taken, refuses with "This slot is already taken", the same message the API returns, and no new row appears in `bookings`.
 
-### Slice 1: sign-in and the lab list
+### Slice 2: booking a slot and cancelling it
 - [AC-12] A visitor who opens `/labs` without signing in is redirected to `/signin` (302), `GET /api/labs` answers 401, and no row is added or changed in any table.
 - [AC-13] A user who signs in and opens `/labs` for a weekday sees every lab from the `labs` table with its 12 one-hour slots from 08:00 to 20:00, each marked "Free" or "Taken" to match the rows in `bookings` for that date.
 - [AC-14] Deleting one row from `labs` in the database and reloading `/labs` removes that lab from the screen.
 - [AC-15] A user who signs in with a wrong password sees "Wrong email or password", and no row is added to `sessions`.
 - [AC-16] On today's date, slots whose start time has already passed are shown as "Past", not "Free".
+- [AC-17] A visitor who is not signed in gets 401 from POST /api/bookings, DELETE /api/bookings/:id and GET /api/bookings/mine, and no row changes in bookings.
+- [AC-18] Booking a lab id that does not exist gets 404 "Lab not found", cancelling a booking id that does not exist gets 404 "Booking not found", and no row changes in bookings.
+- [AC-19] Booking a Saturday or Sunday, or an hour outside 08:00-20:00, gets 422 "Labs can be booked Monday to Friday, 08:00 to 20:00"; a request without a lab id, a real date (YYYY-MM-DD) and a whole hour gets 400; no row is added to bookings.
+- [AC-20] A signed-in user who opens "My bookings" sees only their own upcoming bookings, soonest first, with lab, room, date and hour; with none, it says "No bookings yet" and points to the lab list.
 
 ## Traceability
 <!-- Filled in from Exercise 3 onward: each AC id, and the test that names it. -->
