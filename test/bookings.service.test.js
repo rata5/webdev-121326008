@@ -1,0 +1,171 @@
+import { describe, it, expect, beforeEach } from 'vitest';
+import { createRequire } from 'node:module';
+import { setup, rowCounts } from './helpers.js';
+const require = createRequire(import.meta.url);
+const { createBookingService } = require('../src/services/bookings.js');
+const { createBookingStore } = require('../src/data/bookings.js');
+const { AppError } = require('../src/services/errors.js');
+
+const mondayHalfPastTen = () => new Date('2026-11-02T08:30:00Z');
+
+let db; let service; let ana; let bob; let lab;
+beforeEach(() => {
+  ({ db } = setup());
+  service = createBookingService({ bookings: createBookingStore(db), now: mondayHalfPastTen });
+  const addUser = db.prepare("INSERT INTO users (email, password_hash) VALUES (?, 'x')");
+  ana = { id: Number(addUser.run('ana@tu-sofia.bg').lastInsertRowid), role: 'user' };
+  bob = { id: Number(addUser.run('bob@tu-sofia.bg').lastInsertRowid), role: 'user' };
+  lab = db.prepare('SELECT id FROM labs ORDER BY name LIMIT 1').get().id;
+});
+
+function refusal(call) {
+  try {
+    call();
+  } catch (err) {
+    return err;
+  }
+  throw new Error('expected the call to be refused, but it succeeded');
+}
+
+describe('AC-1 booking a free slot', () => {
+  it('AC-1 stores one row with the user, the lab, the date and the hour', () => {
+    const booking = service.book(ana, { labId: lab, date: '2026-11-02', hour: 11 });
+    expect(booking).toMatchObject({ user_id: ana.id, lab_id: lab, date: '2026-11-02', start_hour: 11 });
+    expect(db.prepare('SELECT user_id, lab_id, date, start_hour FROM bookings').all())
+      .toEqual([{ user_id: ana.id, lab_id: lab, date: '2026-11-02', start_hour: 11 }]);
+  });
+
+  it('AC-1 accepts the lab id and the hour as text, the way a form sends them', () => {
+    expect(service.book(ana, { labId: String(lab), date: '2026-11-03', hour: '8' })).toMatchObject({ start_hour: 8 });
+  });
+});
+
+describe('AC-2 one booking per lab and slot', () => {
+  it('AC-2 a second booking of the same lab and slot is refused with SLOT_TAKEN and adds no row', () => {
+    service.book(ana, { labId: lab, date: '2026-11-03', hour: 9 });
+    const before = rowCounts(db).bookings;
+    const err = refusal(() => service.book(bob, { labId: lab, date: '2026-11-03', hour: 9 }));
+    expect(err).toBeInstanceOf(AppError);
+    expect(err.code).toBe('SLOT_TAKEN');
+    expect(rowCounts(db).bookings).toBe(before);
+  });
+
+  it('AC-2 the same hour in another lab, and the next hour in the same lab, stay free', () => {
+    const other = db.prepare('SELECT id FROM labs WHERE id != ? LIMIT 1').get(lab).id;
+    service.book(ana, { labId: lab, date: '2026-11-03', hour: 9 });
+    expect(service.book(bob, { labId: other, date: '2026-11-03', hour: 9 })).toBeTruthy();
+    expect(service.book(bob, { labId: lab, date: '2026-11-03', hour: 10 })).toBeTruthy();
+  });
+});
+
+describe('AC-3 no past slots', () => {
+  it('AC-3 a slot that has started today is refused with PAST_SLOT, and the next hour is not', () => {
+    expect(refusal(() => service.book(ana, { labId: lab, date: '2026-11-02', hour: 10 })).code).toBe('PAST_SLOT');
+    expect(refusal(() => service.book(ana, { labId: lab, date: '2026-11-02', hour: 8 })).code).toBe('PAST_SLOT');
+    expect(service.book(ana, { labId: lab, date: '2026-11-02', hour: 11 })).toBeTruthy();
+  });
+
+  it('AC-3 a slot on an earlier day is refused with PAST_SLOT and adds no row', () => {
+    expect(refusal(() => service.book(ana, { labId: lab, date: '2026-10-30', hour: 19 })).code).toBe('PAST_SLOT');
+    expect(rowCounts(db).bookings).toBe(0);
+  });
+});
+
+describe('AC-4 at most 3 upcoming bookings', () => {
+  it('AC-4 a 4th upcoming booking is refused with TOO_MANY_BOOKINGS and adds no row', () => {
+    for (const hour of [11, 12, 13]) service.book(ana, { labId: lab, date: '2026-11-02', hour });
+    expect(refusal(() => service.book(ana, { labId: lab, date: '2026-11-03', hour: 8 })).code).toBe('TOO_MANY_BOOKINGS');
+    expect(rowCounts(db).bookings).toBe(3);
+  });
+
+  it('AC-4 bookings whose slot has started do not count', () => {
+    const add = db.prepare('INSERT INTO bookings (user_id, lab_id, date, start_hour) VALUES (?, ?, ?, ?)');
+    add.run(ana.id, lab, '2026-10-30', 9); // last Friday
+    add.run(ana.id, lab, '2026-11-02', 10); // today, started at 10:00
+    for (const hour of [11, 12]) service.book(ana, { labId: lab, date: '2026-11-02', hour });
+    expect(service.book(ana, { labId: lab, date: '2026-11-02', hour: 13 })).toBeTruthy();
+  });
+
+  it('AC-4 bookings of other users do not count', () => {
+    for (const hour of [11, 12, 13]) service.book(bob, { labId: lab, date: '2026-11-02', hour });
+    expect(service.book(ana, { labId: lab, date: '2026-11-02', hour: 14 })).toBeTruthy();
+  });
+});
+
+describe('AC-18 a lab that does not exist', () => {
+  it('AC-18 a lab that does not exist is refused with NOT_FOUND and adds no row', () => {
+    expect(refusal(() => service.book(ana, { labId: 9999, date: '2026-11-03', hour: 9 })).code).toBe('NOT_FOUND');
+    expect(rowCounts(db).bookings).toBe(0);
+  });
+});
+
+describe('AC-19 only real, open slots', () => {
+  it('AC-19 a Saturday, a Sunday, 07:00 and 20:00 are refused with CLOSED and add no row', () => {
+    for (const [date, hour] of [['2026-11-07', 10], ['2026-11-08', 10], ['2026-11-03', 7], ['2026-11-03', 20]]) {
+      expect(refusal(() => service.book(ana, { labId: lab, date, hour })).code).toBe('CLOSED');
+    }
+    expect(rowCounts(db).bookings).toBe(0);
+  });
+
+  it('AC-19 no lab, a date that is not real, or an hour that is not whole is refused with VALIDATION', () => {
+    const bad = [
+      {},
+      { labId: 'one', date: '2026-11-03', hour: 9 },
+      { labId: lab, date: '2026-02-30', hour: 9 },
+      { labId: lab, date: 'tomorrow', hour: 9 },
+      { labId: lab, date: '2026-11-03', hour: 9.5 },
+      { labId: lab, date: '2026-11-03', hour: '9am' },
+    ];
+    for (const input of bad) expect(refusal(() => service.book(ana, input)).code).toBe('VALIDATION');
+    expect(refusal(() => service.book(ana)).code).toBe('VALIDATION');
+  });
+});
+
+describe('AC-20 my upcoming bookings', () => {
+  it('AC-20 lists only my upcoming bookings, soonest first, with the lab name and room', () => {
+    service.book(ana, { labId: lab, date: '2026-11-04', hour: 9 });
+    service.book(ana, { labId: lab, date: '2026-11-02', hour: 15 });
+    service.book(bob, { labId: lab, date: '2026-11-02', hour: 16 });
+    db.prepare('INSERT INTO bookings (user_id, lab_id, date, start_hour) VALUES (?, ?, ?, 9)').run(ana.id, lab, '2026-11-02');
+    const mine = service.upcomingFor(ana);
+    expect(mine.map((b) => [b.date, b.start_hour])).toEqual([['2026-11-02', 15], ['2026-11-04', 9]]);
+    expect(mine[0]).toMatchObject({ lab_id: lab, lab_name: 'Computer Lab 1', room: '1203' });
+  });
+
+  it('AC-20 the real clock is used when none is given', () => {
+    db.prepare('INSERT INTO bookings (user_id, lab_id, date, start_hour) VALUES (?, ?, ?, 9)').run(ana.id, lab, '2099-12-31');
+    const real = createBookingService({ bookings: createBookingStore(db) });
+    expect(real.upcomingFor(ana).map((b) => b.date)).toEqual(['2099-12-31']);
+  });
+});
+
+describe('AC-5, AC-6 and AC-18 cancelling', () => {
+  it('AC-5 the owner cancels their booking and the row is removed', () => {
+    const { id } = service.book(ana, { labId: lab, date: '2026-11-03', hour: 9 });
+    service.cancel(ana, id);
+    expect(db.prepare('SELECT id FROM bookings WHERE id = ?').get(id)).toBeUndefined();
+  });
+
+  it('AC-5 a cancelled slot can be booked again', () => {
+    const { id } = service.book(ana, { labId: lab, date: '2026-11-03', hour: 9 });
+    service.cancel(ana, String(id));
+    expect(service.book(bob, { labId: lab, date: '2026-11-03', hour: 9 })).toMatchObject({ user_id: bob.id });
+  });
+
+  it('AC-6 another user is refused with FORBIDDEN and the row is unchanged', () => {
+    const booking = service.book(ana, { labId: lab, date: '2026-11-03', hour: 9 });
+    expect(refusal(() => service.cancel(bob, booking.id)).code).toBe('FORBIDDEN');
+    expect(db.prepare('SELECT id, user_id, lab_id, date, start_hour FROM bookings WHERE id = ?').get(booking.id)).toEqual(booking);
+  });
+
+  it('AC-6 an admin may cancel any booking', () => {
+    const { id } = service.book(ana, { labId: lab, date: '2026-11-03', hour: 9 });
+    service.cancel({ id: bob.id, role: 'admin' }, id);
+    expect(rowCounts(db).bookings).toBe(0);
+  });
+
+  it('AC-18 cancelling a booking that does not exist is refused with NOT_FOUND', () => {
+    expect(refusal(() => service.cancel(ana, 9999)).code).toBe('NOT_FOUND');
+    expect(refusal(() => service.cancel(ana, 'abc')).code).toBe('NOT_FOUND');
+  });
+});
