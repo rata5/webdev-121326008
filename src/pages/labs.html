@@ -13,6 +13,15 @@
   </header>
   <main>
     <h1>Labs</h1>
+        <section class="card assistant" aria-labelledby="assistant-title">
+      <h2 id="assistant-title">Find me a slot</h2>
+      <form id="assistant-form">
+        <label for="assistant-request">Describe when you need a lab</label>
+        <input id="assistant-request" maxlength="300" required placeholder="20 seats on Thursday afternoon">
+        <button id="assistant-go" type="submit">Find me a slot</button>
+      </form>
+      <div id="assistant-result" aria-live="polite"></div>
+    </section>
     <div id="notice" aria-live="polite"></div>
     <section class="mine" aria-labelledby="mine-title">
       <h2 id="mine-title">My bookings</h2>

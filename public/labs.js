@@ -141,6 +141,40 @@ async function cancel(button, booking, when) {
   notify(body.error ?? 'Could not cancel this booking. Please try again.', 'error');
 }
 
+// "Find me a slot": the model's suggestions, or the fallback slots, each with a Book button.
+// A model suggestion is labelled "Suggestion"; a fallback slot comes from the database, so it is a "Free slot".
+$('assistant-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const button = $('assistant-go');
+  button.disabled = true;
+  button.textContent = 'Thinking…';
+  $('assistant-result').replaceChildren(el('p', { className: 'muted' }, 'Looking for free slots…'));
+  const { status, body } = await call('POST', '/api/assistant/suggest', { request: $('assistant-request').value, date: $('date').value });
+  button.disabled = false;
+  button.textContent = 'Find me a slot';
+  if (status === 401) return;
+  if (status !== 200) {
+    return $('assistant-result').replaceChildren(el('div', { className: 'message error', role: 'alert' }, body.error ?? 'The assistant could not answer. Pick a slot from the list.'));
+  }
+  const parts = body.notice ? [el('div', { className: 'message info' }, body.notice)] : [];
+  const list = el('ul', { className: 'suggestions' });
+  for (const s of body.suggestions) {
+    const item = el('li', { className: 'suggestion' });
+    item.append(
+      el('span', { className: 'tag' }, body.source === 'model' ? 'Suggestion' : 'Free slot'),
+      el('strong', {}, `${s.labName} · Room ${s.room} · ${day(s.date)}, ${s.label}`),
+    );
+    if (s.reason) item.append(el('span', { className: 'muted' }, s.reason));
+    const bookButton = el('button', { type: 'button' }, 'Book');
+    bookButton.setAttribute('aria-label', `Book ${s.labName}, ${day(s.date)}, ${s.label}`);
+    bookButton.addEventListener('click', () => book(bookButton, s)); // s has labId, labName, date, hour, label
+    item.append(bookButton);
+    list.append(item);
+  }
+  if (body.suggestions.length) parts.push(list);
+  $('assistant-result').replaceChildren(...parts);
+});
+
 $('date').value = today();
 $('date').addEventListener('change', load);
 $('signout').addEventListener('click', async () => {

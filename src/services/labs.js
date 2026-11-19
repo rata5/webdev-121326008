@@ -48,7 +48,17 @@ function createLabService({ labs, now = () => new Date(), timeZone = 'Europe/Sof
     };
   }
 
-  return { listWithSlots };
+    // AC-7, AC-8: only an admin adds a lab, and it needs a name, a room and a capacity.
+  function addLab(user, { name, room, capacity } = {}) {
+    if (user.role !== 'admin') throw new AppError('FORBIDDEN', 'Only an admin can add a lab');
+    const lab = { name: String(name ?? '').trim(), room: String(room ?? '').trim(), capacity: Number(capacity) };
+    if (!lab.name || lab.name.length > 60 || !lab.room || lab.room.length > 20
+        || !Number.isInteger(lab.capacity) || lab.capacity < 1 || lab.capacity > 500) {
+      throw new AppError('VALIDATION', 'Give the lab a name, a room number and a capacity from 1 to 500');
+    }
+    return labs.add(lab);
+  }
+  return { listWithSlots, addLab };
 }
 
 module.exports = { createLabService, parseDate, localNow, FIRST_HOUR, LAST_HOUR };

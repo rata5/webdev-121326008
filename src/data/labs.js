@@ -6,6 +6,10 @@ function createLabStore(db) {
   return {
     all: () => all.all(),
     takenSlotsOn: (date) => taken.all(date),
+        add({ name, room, capacity }) {
+      const { lastInsertRowid } = db.prepare('INSERT INTO labs (name, room, capacity) VALUES (?, ?, ?)').run(name, room, capacity);
+      return db.prepare('SELECT id, name, room, capacity FROM labs WHERE id = ?').get(lastInsertRowid);
+    },
   };
 }
 

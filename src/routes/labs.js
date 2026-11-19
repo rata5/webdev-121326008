@@ -14,6 +14,15 @@ function labRoutes({ labService }) {
     }
   });
 
+    // POST /api/labs  { "name": "Robotics Lab", "room": "1301", "capacity": 18 }  (admins only)
+  router.post('/', requireUserApi, (req, res) => {
+    try {
+      res.status(201).json({ lab: labService.addLab(req.user, req.body ?? {}) });
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
+  
   return router;
 }
 

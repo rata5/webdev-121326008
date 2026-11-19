@@ -2,15 +2,17 @@
 const path = require('node:path');
 const express = require('express');
 const { createServices } = require('./services');
+const { createModelClient } = require('./model/client');
 const { loadUser } = require('./routes/http');
 const { authRoutes } = require('./routes/auth');
 const { labRoutes } = require('./routes/labs');
 const { bookingRoutes } = require('./routes/bookings');
+const { assistantRoutes } = require('./routes/assistant');
 const { pageRoutes } = require('./routes/pages');
 
-function createApp({ db, sessionSecret, secureCookies = false, bcryptRounds, now }) {
-  const services = createServices({ db, now, bcryptRounds });
-  const { auth, labService, bookingService } = services;
+function createApp({ db, sessionSecret, secureCookies = false, bcryptRounds, now, modelClient = createModelClient() }) {
+  const services = createServices({ db, now, bcryptRounds, modelClient });
+  const { auth, labService, bookingService, assistant } = services;
 
   const app = express();
   app.disable('x-powered-by');
@@ -21,6 +23,7 @@ function createApp({ db, sessionSecret, secureCookies = false, bcryptRounds, now
   app.use('/api/auth', authRoutes({ auth, secret: sessionSecret, secureCookies }));
   app.use('/api/labs', labRoutes({ labService }));
   app.use('/api/bookings', bookingRoutes({ bookingService }));
+  app.use('/api/assistant', assistantRoutes({ assistant }));
   app.use('/', pageRoutes());
 
   return { app, services };
