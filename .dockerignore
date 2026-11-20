@@ -1,0 +1,9 @@
+# Kept out of the image: dependencies are installed inside it, secrets never go in,
+# and tests do not run in production.
+node_modules
+.env
+.env.*
+.git
+test
+coverage
+data
