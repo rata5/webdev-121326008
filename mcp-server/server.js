@@ -39,21 +39,27 @@ const tools = [
 let project;
 function services() {
   if (!project) {
+    if (!process.env.DATABASE_URL) throw new AppError('NOT_CONFIGURED', 'DATABASE_URL is not set: add it to .env, the same as for npm start.');
     const { openDatabase } = require('../src/data/db');
     const { createServices } = require('../src/services');
-    project = createServices({ db: openDatabase(process.env.DATABASE_URL ?? 'file:./data/labbooking.db') });
+    const db = openDatabase(process.env.DATABASE_URL);
+    project = db.ready().then(() => createServices({ db }), (err) => {
+      project = null; // try again on the next call
+      throw err;
+    });
   }
   return project;
 }
 
 // Tests hand in services built on an in-memory database.
 function useServices(built) {
-  project = built;
+  project = Promise.resolve(built);
 }
 
 // The signed-in user behind MCP_TOKEN. Without one, every project tool is refused.
-function caller() {
-  const user = services().auth.userForToken(process.env.MCP_TOKEN || null);
+async function caller() {
+  const { auth } = await services();
+  const user = await auth.userForToken(process.env.MCP_TOKEN || null);
   if (!user) throw new AppError('NOT_SIGNED_IN', 'MCP_TOKEN is missing or has expired: sign in on the website and copy a fresh session token into MCP_TOKEN.');
   return user;
 }
@@ -65,9 +71,10 @@ const projectTools = [
     name: 'list_labs',
     description: 'List every lab with its id, name, room number and capacity. Use it when the user asks which labs exist or which lab is big enough for a group.',
     inputSchema: { type: 'object', properties: {} },
-    run: () => {
-      caller();
-      const { labs } = services().labService.listWithSlots(localNow(new Date(), 'Europe/Sofia').date);
+    run: async () => {
+      await caller();
+      const { labService } = await services();
+      const { labs } = await labService.listWithSlots(localNow(new Date(), 'Europe/Sofia').date);
       return labs.map((lab) => `Lab ${lab.id}: ${lab.name}, room ${lab.room}, ${lab.capacity} seats`).join('\n') || 'There are no labs yet.';
     },
   },
@@ -82,9 +89,10 @@ const projectTools = [
       },
       required: ['date'],
     },
-    run: ({ date, labId }) => {
-      caller();
-      const { open, labs } = services().labService.listWithSlots(date);
+    run: async ({ date, labId }) => {
+      await caller();
+      const { labService } = await services();
+      const { open, labs } = await labService.listWithSlots(date);
       if (!open) return `Labs are closed on ${date}. Pick a day from Monday to Friday.`;
       const lines = labs.filter((lab) => labId === undefined || lab.id === labId).map((lab) => {
         const free = lab.slots.filter((slot) => slot.free && !slot.past).map((slot) => slot.label);
@@ -105,8 +113,10 @@ const projectTools = [
       },
       required: ['labId', 'date', 'hour'],
     },
-    run: ({ labId, date, hour }) => {
-      const booking = services().bookingService.book(caller(), { labId, date, hour });
+    run: async ({ labId, date, hour }) => {
+      const user = await caller();
+      const { bookingService } = await services();
+      const booking = await bookingService.book(user, { labId, date, hour });
       return `Booking confirmed: booking ${booking.id}, lab ${booking.lab_id}, ${booking.date} at ${pad(booking.start_hour)}:00.`;
     },
   },
@@ -114,8 +124,10 @@ const projectTools = [
     name: 'list_my_bookings',
     description: 'List the upcoming bookings of the signed-in user, with booking id, lab, date and hour. Use it when the user asks what they have booked, or wants to cancel something.',
     inputSchema: { type: 'object', properties: {} },
-    run: () => {
-      const mine = services().bookingService.upcomingFor(caller());
+    run: async () => {
+      const user = await caller();
+      const { bookingService } = await services();
+      const mine = await bookingService.upcomingFor(user);
       return mine.map((b) => `Booking ${b.id}: ${b.lab_name}, room ${b.room}, ${b.date} at ${pad(b.start_hour)}:00`).join('\n') || 'No upcoming bookings.';
     },
   },
@@ -127,17 +139,19 @@ const projectTools = [
       properties: { bookingId: { type: 'integer', description: 'The booking id, from list_my_bookings' } },
       required: ['bookingId'],
     },
-    run: ({ bookingId }) => {
-      services().bookingService.cancel(caller(), bookingId);
+    run: async ({ bookingId }) => {
+      const user = await caller();
+      const { bookingService } = await services();
+      await bookingService.cancel(user, bookingId);
       return `Booking ${bookingId} is cancelled. The slot is free again.`;
     },
   },
 ];
 
 // A refusal from a rule is a normal result marked isError, with the sentence the website shows.
-function runProjectTool(id, tool, args) {
+async function runProjectTool(id, tool, args) {
   try {
-    return textResult(id, tool.run(args), false);
+    return textResult(id, await tool.run(args), false);
   } catch (err) {
     if (err instanceof AppError) return textResult(id, err.message, true);
     console.error(err);
@@ -150,8 +164,8 @@ function send(reply) {
   process.stdout.write(JSON.stringify(reply) + '\n');
 }
 
-// Decide what to answer. Return the reply, or null to answer nothing.
-function handle(msg) {
+// Decide what to answer. Resolves to the reply, or to null to answer nothing.
+async function handle(msg) {
   if (msg.method === 'initialize') {
     return {
       jsonrpc: '2.0',
@@ -167,7 +181,7 @@ function handle(msg) {
     return null; // a notification: it has no id and gets no reply
   }
   if (msg.method === 'tools/list') {
-        const listed = tools.concat(projectTools.map(({ name, description, inputSchema }) => ({ name, description, inputSchema })));
+    const listed = tools.concat(projectTools.map(({ name, description, inputSchema }) => ({ name, description, inputSchema })));
     return { jsonrpc: '2.0', id: msg.id, result: { tools: listed } };
   }
   if (msg.method === 'tools/call') {
@@ -202,9 +216,13 @@ module.exports = { handle, useServices };
 // Started as a program (npm run mcp), not loaded by a test: read requests from stdin.
 if (require.main === module) {
   const lines = readline.createInterface({ input: process.stdin });
+  // One message at a time, in the order they arrive, so the replies keep that order too.
+  let queue = Promise.resolve();
   lines.on('line', (line) => {
     console.error('got: ' + line);
-    const reply = handle(JSON.parse(line));
-    if (reply) send(reply);
+    queue = queue.then(async () => {
+      const reply = await handle(JSON.parse(line));
+      if (reply) send(reply);
+    }).catch((err) => console.error(err));
   });
 }

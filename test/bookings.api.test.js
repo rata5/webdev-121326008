@@ -5,9 +5,9 @@ import { setup, rowCounts } from './helpers.js';
 
 // setup()'s clock is Sunday 1 November 2026, 12:00 in Sofia, so Monday 2 November is ahead.
 let db; let app; let lab;
-beforeEach(() => {
-  ({ db, app } = setup());
-  lab = db.prepare('SELECT id FROM labs ORDER BY name LIMIT 1').get().id; // Computer Lab 1, room 1203
+beforeEach(async () => {
+  ({ db, app } = await setup());
+  lab = (await db.one('SELECT id FROM labs ORDER BY name LIMIT 1')).id; // Computer Lab 1, room 1203
 });
 
 async function signedIn(email) {
@@ -24,8 +24,8 @@ describe('AC-1 booking a free slot', () => {
     const res = await ana.post('/api/bookings').send(slot());
     expect(res.status).toBe(201);
     expect(res.body.message).toBe('Booking confirmed');
-    const user = db.prepare("SELECT id FROM users WHERE email = 'ana@tu-sofia.bg'").get();
-    expect(db.prepare('SELECT user_id, lab_id, date, start_hour FROM bookings').all())
+    const user = await db.one("SELECT id FROM users WHERE email = 'ana@tu-sofia.bg'");
+    expect(await db.query('SELECT user_id, lab_id, date, start_hour FROM bookings'))
       .toEqual([{ user_id: user.id, lab_id: lab, date: '2026-11-02', start_hour: 10 }]);
   });
 
@@ -44,11 +44,11 @@ describe('AC-2 a taken slot', () => {
     const ana = await signedIn('ana@tu-sofia.bg');
     const bob = await signedIn('bob@tu-sofia.bg');
     await ana.post('/api/bookings').send(slot()).expect(201);
-    const before = rowCounts(db);
+    const before = await rowCounts(db);
     const res = await bob.post('/api/bookings').send(slot());
     expect(res.status).toBe(409);
     expect(res.body.error).toBe('This slot is already taken');
-    expect(rowCounts(db)).toEqual(before);
+    expect(await rowCounts(db)).toEqual(before);
   });
 });
 
@@ -58,7 +58,7 @@ describe('AC-3 past slots', () => {
     const res = await ana.post('/api/bookings').send(slot({ date: '2026-10-30' }));
     expect(res.status).toBe(422);
     expect(res.body.error).toBe('You cannot book a past slot');
-    expect(rowCounts(db).bookings).toBe(0);
+    expect((await rowCounts(db)).bookings).toBe(0);
   });
 });
 
@@ -69,13 +69,13 @@ describe('AC-4 three upcoming bookings', () => {
     const res = await ana.post('/api/bookings').send(slot({ hour: 11 }));
     expect(res.status).toBe(409);
     expect(res.body.error).toBe('You can have at most 3 upcoming bookings');
-    expect(rowCounts(db).bookings).toBe(3);
+    expect((await rowCounts(db)).bookings).toBe(3);
   });
 });
 
 describe('AC-17 not signed in', () => {
   it('AC-17 without a session, booking and listing get 401 and nothing changes', async () => {
-    const before = rowCounts(db);
+    const before = await rowCounts(db);
     for (const res of [
       await request(app).post('/api/bookings').send(slot()),
       await request(app).get('/api/bookings/mine'),
@@ -83,18 +83,18 @@ describe('AC-17 not signed in', () => {
       expect(res.status).toBe(401);
       expect(res.body.error).toBe('Please sign in first');
     }
-    expect(rowCounts(db)).toEqual(before);
+    expect(await rowCounts(db)).toEqual(before);
   });
 });
 
 describe('AC-18 a lab that does not exist', () => {
   it('AC-18 booking a lab that does not exist gets 404 and nothing changes', async () => {
     const ana = await signedIn('ana@tu-sofia.bg');
-    const before = rowCounts(db);
+    const before = await rowCounts(db);
     const res = await ana.post('/api/bookings').send(slot({ labId: 9999 }));
     expect(res.status).toBe(404);
     expect(res.body.error).toBe('Lab not found');
-    expect(rowCounts(db)).toEqual(before);
+    expect(await rowCounts(db)).toEqual(before);
   });
 });
 
@@ -106,7 +106,7 @@ describe('AC-19 closed slots and malformed requests', () => {
     await ana.post('/api/bookings').send({ date: '2026-11-02', hour: 10 }).expect(400);
     await ana.post('/api/bookings').send(slot({ date: '02.11.2026' })).expect(400);
     await ana.post('/api/bookings').expect(400);
-    expect(rowCounts(db).bookings).toBe(0);
+    expect((await rowCounts(db)).bookings).toBe(0);
   });
 });
 
@@ -134,7 +134,7 @@ describe('AC-5, AC-6, AC-17 and AC-18 cancelling over HTTP', () => {
     const ana = await signedIn('ana@tu-sofia.bg');
     const { body } = await ana.post('/api/bookings').send(slot()).expect(201);
     await ana.delete(`/api/bookings/${body.booking.id}`).expect(204);
-    expect(rowCounts(db).bookings).toBe(0);
+    expect((await rowCounts(db)).bookings).toBe(0);
     const list = await ana.get('/api/labs?date=2026-11-02').expect(200);
     expect(list.body.labs.find((l) => l.id === lab).slots.find((s) => s.hour === 10).free).toBe(true);
     const mine = await ana.get('/api/bookings/mine').expect(200);
@@ -145,20 +145,20 @@ describe('AC-5, AC-6, AC-17 and AC-18 cancelling over HTTP', () => {
     const ana = await signedIn('ana@tu-sofia.bg');
     const bob = await signedIn('bob@tu-sofia.bg');
     const { body } = await ana.post('/api/bookings').send(slot()).expect(201);
-    const before = db.prepare('SELECT * FROM bookings').all();
+    const before = await db.query('SELECT * FROM bookings');
     const res = await bob.delete(`/api/bookings/${body.booking.id}`);
     expect(res.status).toBe(403);
     expect(res.body.error).toBe('You can only cancel your own bookings');
-    expect(db.prepare('SELECT * FROM bookings').all()).toEqual(before);
+    expect(await db.query('SELECT * FROM bookings')).toEqual(before);
   });
 
   it('AC-6 an admin may cancel a booking of another user (204)', async () => {
     const ana = await signedIn('ana@tu-sofia.bg');
     const admin = await signedIn('admin@tu-sofia.bg');
-    db.prepare("UPDATE users SET role = 'admin' WHERE email = 'admin@tu-sofia.bg'").run();
+    await db.run("UPDATE users SET role = 'admin' WHERE email = 'admin@tu-sofia.bg'");
     const { body } = await ana.post('/api/bookings').send(slot()).expect(201);
     await admin.delete(`/api/bookings/${body.booking.id}`).expect(204);
-    expect(rowCounts(db).bookings).toBe(0);
+    expect((await rowCounts(db)).bookings).toBe(0);
   });
 
   it('AC-17 DELETE without a session gets 401 and the row stays', async () => {
@@ -166,7 +166,7 @@ describe('AC-5, AC-6, AC-17 and AC-18 cancelling over HTTP', () => {
     const { body } = await ana.post('/api/bookings').send(slot()).expect(201);
     const res = await request(app).delete(`/api/bookings/${body.booking.id}`);
     expect(res.status).toBe(401);
-    expect(rowCounts(db).bookings).toBe(1);
+    expect((await rowCounts(db)).bookings).toBe(1);
   });
 
   it('AC-18 cancelling a booking that does not exist gets 404', async () => {

@@ -20,9 +20,9 @@ Lab booking.
 - No payments: Booking a lab is free
 
 ## Constraints
-- Bookings are stored in a database file and survive a server restart
+- Bookings are stored in PostgreSQL (Neon) and survive a server restart and a redeploy
 - A slot is one hour, between 08:00 and 20:00, Monday to Friday
-- A user cannot book a slot in the past; the API answers 423
+- A user cannot book a slot in the past; the API answers 422
 - A user can hold at most 3 upcoming bookings; the 4th is refused
 - Only the user who made a booking (or an admin) can cancel it; anyone else gets 403
 
@@ -56,7 +56,7 @@ Lab booking.
 
 ## UI
 <!-- Stack, and the three or more screens. The graded checklist lives in docs/UI.md. -->
-- Stack: Node 22 with Express for the HTTP API and the MCP server (same service layer); SQLite through `better-sqlite3` as the database file; plain HTML, CSS and JavaScript pages served by Express (no frontend framework and no build step), with CSS design tokens; sessions in an HTTP-only cookie; Google sign-in through OpenID Connect; the model through the Gemini API; tests with Vitest and Supertest. Express serves the API and the pages on port 3000.
+- Stack: Node 22 with Express for the HTTP API and the MCP server (same service layer); PostgreSQL (Neon) through `pg`, and PGlite in the tests; plain HTML, CSS and JavaScript pages served by Express (no frontend framework and no build step), with CSS design tokens; sessions in an HTTP-only cookie; Google sign-in through OpenID Connect; the model through the Gemini API; tests with Vitest and Supertest. Express serves the API and the pages on port 3000.
 - Screens:
   1. Sign in / Sign up: email and password form, "Sign in with Google" button, link between the two forms.
   2. Lab list (Slice 1): a date picker and every lab with its free and taken one-hour slots for that day; a free slot has a "Book" button. The "Find me a slot" box sits at the top of this screen: the user types a request and sees up to 3 suggestions labelled "Suggestion".

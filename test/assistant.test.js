@@ -20,11 +20,11 @@ const assistant = (client, options = {}) => createAssistantService({ labService:
 const ask = (client, date = '2026-11-03') => assistant(client).findSlots({ request: 'a lab on Tuesday afternoon', date });
 const json = (suggestions) => JSON.stringify({ suggestions });
 
-beforeEach(() => {
-  ({ db, services } = setup(mondayHalfPastTen));
-  lab = db.prepare('SELECT id FROM labs ORDER BY name LIMIT 1').get().id; // Computer Lab 1, room 1203
-  const bob = db.prepare("INSERT INTO users (email, password_hash) VALUES ('bob@tu-sofia.bg', 'x')").run().lastInsertRowid;
-  db.prepare("INSERT INTO bookings (user_id, lab_id, date, start_hour) VALUES (?, ?, '2026-11-03', 14)").run(bob, lab);
+beforeEach(async () => {
+  ({ db, services } = await setup(mondayHalfPastTen));
+  lab = (await db.one('SELECT id FROM labs ORDER BY name LIMIT 1')).id; // Computer Lab 1, room 1203
+  const bob = (await db.one("INSERT INTO users (email, password_hash) VALUES ('bob@tu-sofia.bg', 'x') RETURNING id")).id;
+  await db.run("INSERT INTO bookings (user_id, lab_id, date, start_hour) VALUES ($1, $2, '2026-11-03', 14)", [bob, lab]);
 });
 
 describe('AC-10 a good answer', () => {
@@ -146,7 +146,7 @@ describe('AC-10 the model client', () => {
 
 describe('AC-10 over HTTP', () => {
   it('AC-10 with no GEMINI_API_KEY, POST /api/assistant/suggest shows "unavailable" and 3 free slots of the chosen day from the database', async () => {
-    const app = setup(undefined, { modelClient: createModelClient({ apiKey: '' }) }).app;
+    const { app } = await setup(undefined, { modelClient: createModelClient({ apiKey: '' }) });
     const agent = request.agent(app);
     await agent.post('/api/auth/signup').send({ email: 'ana@tu-sofia.bg', password: 'correct-horse' }).expect(201);
     const labs = await agent.get('/api/labs?date=2026-11-02').expect(200);
@@ -159,7 +159,7 @@ describe('AC-10 over HTTP', () => {
   });
 
   it('AC-10 the assistant needs a signed-in user (401) and a request (400)', async () => {
-    const { app } = setup();
+    const { app } = await setup();
     await request(app).post('/api/assistant/suggest').send({ request: 'Monday', date: '2026-11-02' }).expect(401);
     const agent = request.agent(app);
     await agent.post('/api/auth/signup').send({ email: 'ana@tu-sofia.bg', password: 'correct-horse' }).expect(201);

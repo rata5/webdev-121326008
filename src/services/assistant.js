@@ -29,8 +29,8 @@ function suggestionsIn(answer) {
 
 function createAssistantService({ labService, client, now = () => new Date(), timeZone = 'Europe/Sofia', timeoutMs = 10_000 }) {
   // The free slots that have not started on one date, earliest first, from the database.
-  function freeOn(date) {
-    return labService.listWithSlots(date).labs
+  async function freeOn(date) {
+    return (await labService.listWithSlots(date)).labs
       .flatMap((lab) => lab.slots
         .filter((slot) => slot.free && !slot.past)
         .map((slot) => ({ labId: lab.id, labName: lab.name, room: lab.room, capacity: lab.capacity, date, hour: slot.hour, label: slot.label })))
@@ -87,11 +87,12 @@ function createAssistantService({ labService, client, now = () => new Date(), ti
     if (!parseDate(date)) throw new AppError('VALIDATION', 'Choose a valid date (YYYY-MM-DD)');
 
     const today = localNow(now(), timeZone).date;
-    const upcoming = Array.from({ length: DAYS_AHEAD }, (_, i) => addDays(today, i)).flatMap(freeOn);
+    const days = Array.from({ length: DAYS_AHEAD }, (_, i) => addDays(today, i));
+    const upcoming = (await Promise.all(days.map(freeOn))).flat();
     const { answer, failed } = await ask(prompt(text, today, upcoming));
 
     if (failed) {
-      const fallback = freeOn(date).slice(0, MAX_SUGGESTIONS).map((slot) => ({ ...slot, reason: 'A free slot on the day you picked' }));
+      const fallback = (await freeOn(date)).slice(0, MAX_SUGGESTIONS).map((slot) => ({ ...slot, reason: 'A free slot on the day you picked' }));
       return { source: 'fallback', notice: failed === 'timeout' ? SLOW : UNAVAILABLE, suggestions: fallback };
     }
 

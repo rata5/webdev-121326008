@@ -8,9 +8,9 @@ function bookingRoutes({ bookingService }) {
   const router = express.Router();
 
   // POST /api/bookings  { "labId": 1, "date": "2026-11-23", "hour": 10 }
-  router.post('/', requireUserApi, (req, res) => {
+  router.post('/', requireUserApi, async (req, res) => {
     try {
-      const booking = bookingService.book(req.user, req.body ?? {});
+      const booking = await bookingService.book(req.user, req.body ?? {});
       res.status(201).json({ booking, message: 'Booking confirmed' });
     } catch (err) {
       sendError(res, err);
@@ -18,24 +18,24 @@ function bookingRoutes({ bookingService }) {
   });
 
   // GET /api/bookings/mine
-  router.get('/mine', requireUserApi, (req, res) => {
+  router.get('/mine', requireUserApi, async (req, res) => {
     try {
-      res.json({ bookings: bookingService.upcomingFor(req.user) });
+      res.json({ bookings: await bookingService.upcomingFor(req.user) });
     } catch (err) {
       sendError(res, err);
     }
   });
 
-    // DELETE /api/bookings/42
-  router.delete('/:id', requireUserApi, (req, res) => {
+  // DELETE /api/bookings/42
+  router.delete('/:id', requireUserApi, async (req, res) => {
     try {
-      bookingService.cancel(req.user, req.params.id);
+      await bookingService.cancel(req.user, req.params.id);
       res.status(204).end();
     } catch (err) {
       sendError(res, err);
     }
   });
-  
+
   return router;
 }
 

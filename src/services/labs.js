@@ -22,7 +22,7 @@ function localNow(now, timeZone) {
 }
 
 function createLabService({ labs, now = () => new Date(), timeZone = 'Europe/Sofia' }) {
-  function listWithSlots(date) {
+  async function listWithSlots(date) {
     const day = parseDate(date);
     if (!day) throw new AppError('VALIDATION', 'Choose a valid date (YYYY-MM-DD)');
     const weekday = day.getUTCDay();
@@ -32,11 +32,11 @@ function createLabService({ labs, now = () => new Date(), timeZone = 'Europe/Sof
     // A slot is past when its day is before today, or it is today and its hour has started.
     const isPast = (hour) => date < today.date || (date === today.date && hour <= today.hour);
 
-    const taken = new Set(labs.takenSlotsOn(date).map((b) => `${b.lab_id}:${b.start_hour}`));
+    const taken = new Set((await labs.takenSlotsOn(date)).map((b) => `${b.lab_id}:${b.start_hour}`));
     return {
       date,
       open,
-      labs: labs.all().map((lab) => ({
+      labs: (await labs.all()).map((lab) => ({
         ...lab,
         slots: open
           ? Array.from({ length: LAST_HOUR - FIRST_HOUR + 1 }, (_, i) => {
@@ -49,7 +49,7 @@ function createLabService({ labs, now = () => new Date(), timeZone = 'Europe/Sof
   }
 
     // AC-7, AC-8: only an admin adds a lab, and it needs a name, a room and a capacity.
-  function addLab(user, { name, room, capacity } = {}) {
+  async function addLab(user, { name, room, capacity } = {}) {
     if (user.role !== 'admin') throw new AppError('FORBIDDEN', 'Only an admin can add a lab');
     const lab = { name: String(name ?? '').trim(), room: String(room ?? '').trim(), capacity: Number(capacity) };
     if (!lab.name || lab.name.length > 60 || !lab.room || lab.room.length > 20

@@ -46,9 +46,9 @@ function clearSessionCookie(res) {
 
 // Puts the signed-in user (or null) on req.user for every request.
 function loadUser(auth, secret) {
-  return (req, _res, next) => {
+  return async (req, _res, next) => {
     req.sessionToken = sessionToken(req, secret);
-    req.user = auth.userForToken(req.sessionToken);
+    req.user = await auth.userForToken(req.sessionToken);
     next();
   };
 }

@@ -10,8 +10,8 @@ LabBookingBg lets teachers see which university labs are free on a given day and
 ## Commands
 <!-- How to install, run, test. Keep these exact and working. -->
 - Install: `npm install`
-- Run: `npm start` (serves http://localhost:3000; migrations run at start)
-- Test: `npm test`
+- Run: `npm start` (needs DATABASE_URL and SESSION_SECRET in .env; serves http://localhost:3000; migrations run at start)
+- Test: `npm test` (runs on PGlite, PostgreSQL inside Node, so it needs no DATABASE_URL)
 - Coverage: `npm run coverage`
 - MCP server: `npm run mcp`
 
@@ -67,7 +67,7 @@ that talks to the database directly is a second, unguarded way into your data: n
 - changing the bookings table or its UNIQUE (lab_id, date, start_hour) constraint
 - changing a status code or a user-facing message that SPEC.md names
 - editing or deleting a test whose title names an AC id
-- writing to the database file in data/ outside the app (sqlite3, scripts)
+- writing to the production database outside the app (Neon's SQL Editor, psql, scripts)
 
 ## Never
 - commit secrets, passwords, API keys or an OAuth client secret

@@ -1,15 +1,10 @@
 // Data access for labs and the bookings that make a slot taken.
 function createLabStore(db) {
-  const all = db.prepare('SELECT id, name, room, capacity FROM labs ORDER BY name');
-  const taken = db.prepare('SELECT lab_id, start_hour FROM bookings WHERE date = ?');
-
   return {
-    all: () => all.all(),
-    takenSlotsOn: (date) => taken.all(date),
-        add({ name, room, capacity }) {
-      const { lastInsertRowid } = db.prepare('INSERT INTO labs (name, room, capacity) VALUES (?, ?, ?)').run(name, room, capacity);
-      return db.prepare('SELECT id, name, room, capacity FROM labs WHERE id = ?').get(lastInsertRowid);
-    },
+    all: () => db.query('SELECT id, name, room, capacity FROM labs ORDER BY name'),
+    takenSlotsOn: (date) => db.query('SELECT lab_id, start_hour FROM bookings WHERE date = $1', [date]),
+    add: ({ name, room, capacity }) =>
+      db.one('INSERT INTO labs (name, room, capacity) VALUES ($1, $2, $3) RETURNING id, name, room, capacity', [name, room, capacity]),
   };
 }
 

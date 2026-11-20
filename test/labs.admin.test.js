@@ -4,14 +4,14 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { setup, rowCounts } from './helpers.js';
 
 let db; let app; let services;
-beforeEach(() => {
-  ({ db, app, services } = setup());
+beforeEach(async () => {
+  ({ db, app, services } = await setup());
 });
 
 async function signedIn(email, role = 'user') {
   const agent = request.agent(app);
   await agent.post('/api/auth/signup').send({ email, password: 'correct-horse' }).expect(201);
-  db.prepare('UPDATE users SET role = ? WHERE email = ?').run(role, email);
+  await db.run('UPDATE users SET role = $1 WHERE email = $2', [role, email]);
   return agent;
 }
 
@@ -22,22 +22,22 @@ describe('AC-7 an admin adds a lab', () => {
     const admin = await signedIn('admin@tu-sofia.bg', 'admin');
     const res = await admin.post('/api/labs').send(robotics);
     expect(res.status).toBe(201);
-    expect(db.prepare("SELECT name, room, capacity FROM labs WHERE name = 'Robotics Lab'").all()).toEqual([robotics]);
+    expect(await db.query("SELECT name, room, capacity FROM labs WHERE name = 'Robotics Lab'")).toEqual([robotics]);
     const list = await admin.get('/api/labs?date=2026-11-02').expect(200);
     expect(list.body.labs.map((l) => l.name)).toContain('Robotics Lab');
   });
 
-  it('AC-7 a lab without a name or room, or with a capacity that is not 1 to 500, is refused with VALIDATION', () => {
+  it('AC-7 a lab without a name or room, or with a capacity that is not 1 to 500, is refused with VALIDATION', async () => {
     const admin = { id: 1, role: 'admin' };
     const bad = [{}, { ...robotics, name: ' ' }, { ...robotics, room: '' }, { ...robotics, name: 'x'.repeat(61) }, { ...robotics, room: 'x'.repeat(21) },
       { ...robotics, capacity: 0 }, { ...robotics, capacity: 501 }, { ...robotics, capacity: 2.5 }, { ...robotics, capacity: 'many' }];
     for (const input of bad) {
       let code = 'no error';
-      try { services.labService.addLab(admin, input); } catch (err) { code = err.code; }
+      try { await services.labService.addLab(admin, input); } catch (err) { code = err.code; }
       expect(code).toBe('VALIDATION');
     }
-    expect(() => services.labService.addLab(admin)).toThrow();
-    expect(rowCounts(db).labs).toBe(3);
+    await expect(services.labService.addLab(admin)).rejects.toThrow();
+    expect((await rowCounts(db)).labs).toBe(3);
   });
 });
 
@@ -47,11 +47,11 @@ describe('AC-8 nobody else adds a lab', () => {
     const res = await ana.post('/api/labs').send(robotics);
     expect(res.status).toBe(403);
     expect(res.body.error).toBe('Only an admin can add a lab');
-    expect(rowCounts(db).labs).toBe(3);
+    expect((await rowCounts(db)).labs).toBe(3);
   });
 
   it('AC-8 POST /api/labs without a session answers 401 and adds no row', async () => {
     await request(app).post('/api/labs').send(robotics).expect(401);
-    expect(rowCounts(db).labs).toBe(3);
+    expect((await rowCounts(db)).labs).toBe(3);
   });
 });

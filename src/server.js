@@ -1,17 +1,28 @@
-// Entry point: `npm start`.
+// Entry point: `npm start`. It reads the environment first, and stops with a message
+// naming the variable when one the app cannot run without is missing.
+const { loadConfig } = require('./config');
 const { openDatabase } = require('./data/db');
 const { createApp } = require('./app');
 
-const port = Number(process.env.PORT ?? 3000);
-let secret = process.env.SESSION_SECRET;
-if (!secret || secret === 'change-me') {
-  secret = 'dev-only-secret';
-  console.warn('SESSION_SECRET is not set: using a development secret. Set it in Codespaces secrets.');
+let config;
+try {
+  config = loadConfig();
+} catch (err) {
+  console.error(err.message);
+  process.exit(1);
 }
 
-const db = openDatabase(process.env.DATABASE_URL ?? 'file:./data/labbooking.db');
-const { app } = createApp({ db, sessionSecret: secret, secureCookies: process.env.NODE_ENV === 'production' });
+const db = openDatabase(config.databaseUrl);
+const { app } = createApp({ db, sessionSecret: config.sessionSecret, secureCookies: config.production });
 
-app.listen(port, () => {
-  console.log(`lab-booking listening on http://localhost:${port}`);
+app.listen(config.port, () => {
+  console.log(`lab-booking listening on http://localhost:${config.port}`);
 });
+
+
+// Bring the database up to date now, not on the first request. If it cannot be reached,
+// the app still starts: requests that need it fail, and the next attempt tries again.
+db.ready().then(
+  () => console.log('database: migrations are up to date'),
+  (err) => console.error(`database: not reachable yet (${err.message})`),
+);
