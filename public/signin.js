@@ -15,6 +15,9 @@ function setMode(next) {
 }
 
 $('switch').addEventListener('click', () => setMode(mode === 'signin' ? 'signup' : 'signin'));
+// When Google sign-in does not work, the server sends the browser back here with ?error=…
+const googleError = new URLSearchParams(window.location.search).get('error');
+if (googleError) $('message').textContent = googleError;
 
 $('auth-form').addEventListener('submit', async (event) => {
   event.preventDefault();

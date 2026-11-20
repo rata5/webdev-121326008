@@ -7,6 +7,7 @@ const SESSION_DAYS = 7;
 const MIN_PASSWORD = 8;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const WRONG = 'Wrong email or password';
+const UNVERIFIED = 'Google has not verified this email address, so it cannot sign you in here.';
 
 const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
 
@@ -54,7 +55,23 @@ function createAuthService({ users, sessions, now = Date.now, bcryptRounds = 10 
     return (await users.findById(session.user_id)) ?? null;
   }
 
-  return { signUp, signIn, signOut, userForToken };
+    // AC-9: sign in with Google. A Google account is found by its Google account id (sub).
+  // The first time, it joins the account that has its address, or it becomes a new account.
+  async function signInWithGoogle({ sub, email, emailVerified } = {}) {
+    if (!sub) throw new AppError('WRONG_CREDENTIALS', UNVERIFIED);
+    const known = await users.findByIdentity('google', sub);
+    if (known) return startSession(known);
+    // RULE AC-9: only an address Google has verified joins an account, or starts one.
+    if (!emailVerified || !EMAIL.test(email ?? '')) throw new AppError('WRONG_CREDENTIALS', UNVERIFIED);
+    const existing = await users.findByEmail(email);
+    if (existing) {
+      await users.addIdentity(existing.id, 'google', sub);
+      return startSession(existing);
+    }
+    return startSession(await users.createWithIdentity(email, 'google', sub));
+  }
+
+  return { signUp, signIn, signOut, userForToken, signInWithGoogle };
 }
 
 module.exports = { createAuthService };

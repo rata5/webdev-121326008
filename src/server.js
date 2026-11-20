@@ -3,6 +3,7 @@
 const { loadConfig } = require('./config');
 const { openDatabase } = require('./data/db');
 const { createApp } = require('./app');
+const { createGoogleClient } = require('./google/client');
 
 let config;
 try {
@@ -13,7 +14,8 @@ try {
 }
 
 const db = openDatabase(config.databaseUrl);
-const { app } = createApp({ db, sessionSecret: config.sessionSecret, secureCookies: config.production });
+const google = config.google ? createGoogleClient(config.google) : null;
+const { app } = createApp({ db, sessionSecret: config.sessionSecret, secureCookies: config.production, google });
 
 app.listen(config.port, () => {
   console.log(`lab-booking listening on http://localhost:${config.port}`);

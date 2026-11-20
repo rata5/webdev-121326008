@@ -39,8 +39,7 @@ Lab booking.
 <!-- Local sign-in plus at least one provider. Say how an account signing in both ways stays one account. -->
 - Local: e-mail and password, stored as a bcrypt hash.
 - Provider: Sign in with Google, the authorization-code flow, on the server.
-- Linking: matched on Google's account id. An address Google has not marked as verified is
-  never linked to an existing account.
+- Linking: matched on Google's account id. The first Google sign-in joins the account with the same address, or creates an account without a password, but only when Google marks the address as verified; an unverified address is refused.
 
 ## MCP tools
 <!-- At least three tools your own MCP server exposes over this project's data.
@@ -101,12 +100,26 @@ Lab booking.
 <!-- Filled in from Exercise 3 onward: each AC id, and the test that names it. -->
 | Criterion | Test |
 | --- | --- |
-| AC-1 to AC-11 | (from Exercise 3) |
+| AC-1 | `test/bookings.api.test.js`: "AC-1 POST /api/bookings answers 201…" |
+| AC-2 | `test/bookings.api.test.js`: "AC-2 a second user booking the same slot gets 409…" |
+| AC-3 | `test/bookings.api.test.js`: "AC-3 booking a slot on an earlier day gets 422…" |
+| AC-4 | `test/bookings.api.test.js`: "AC-4 the 4th upcoming booking gets 409…" |
+| AC-5 | `test/bookings.api.test.js`: "AC-5 DELETE by the owner gets 204…" |
+| AC-6 | `test/bookings.api.test.js`: "AC-6 DELETE by another user gets 403…" |
+| AC-7 | `test/labs.admin.test.js`: "AC-7 POST /api/labs by an admin answers 201…" |
+| AC-8 | `test/labs.admin.test.js`: "AC-8 POST /api/labs by a user answers 403…" |
+| AC-9 | `test/google.test.js`: "AC-9 a password account that signs in with Google, verified address, lands in the same account…" |
+| AC-10 | `test/assistant.test.js`: "AC-10 with no GEMINI_API_KEY, POST /api/assistant/suggest shows…" |
+| AC-11 | `test/mcp.test.js`: "AC-11 book_slot refuses a taken slot…" |
 | AC-12 | `test/slice1.test.js`: "AC-12 a guest who opens the lab list is redirected…" |
 | AC-13 | `test/slice1.test.js`: "AC-13 the lab list for a weekday shows every lab…" |
 | AC-14 | `test/slice1.test.js`: "AC-14 deleting a row from labs and reloading…" |
 | AC-15 | `test/auth.test.js`: "AC-15 a wrong password or an unknown email…" |
 | AC-16 | `test/slice1.test.js`: "AC-16 on today's date the slots up to the current hour are past…" |
+| AC-17 | `test/bookings.api.test.js`: "AC-17 without a session, booking and listing get 401…" |
+| AC-18 | `test/bookings.api.test.js`: "AC-18 booking a lab that does not exist gets 404…" |
+| AC-19 | `test/bookings.api.test.js`: "AC-19 a Saturday or 20:00 gets 422…" |
+| AC-20 | `test/bookings.api.test.js`: "AC-20 GET /api/bookings/mine lists only my upcoming bookings…" |
 
 ## Spec vs result
 <!-- After the agent builds the slice: which criteria passed, which it missed or reinterpreted, and what you changed in this spec because of it. -->

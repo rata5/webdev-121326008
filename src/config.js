@@ -10,11 +10,18 @@ function loadConfig(env = process.env) {
   if (env.SESSION_SECRET === 'change-me') {
     throw new Error('SESSION_SECRET is still the placeholder from .env.example. Make a real one with: openssl rand -hex 32');
   }
+  const port = Number(env.PORT || 3000);
+  const publicBaseUrl = (env.PUBLIC_BASE_URL || `http://localhost:${port}`).replace(/\/+$/, '');
   return {
-    port: Number(env.PORT || 3000),
+    port,
     databaseUrl: env.DATABASE_URL,
     sessionSecret: env.SESSION_SECRET,
     production: env.NODE_ENV === 'production',
+    publicBaseUrl,
+    // Google sign-in needs both values. Without them it is off, and its button says so.
+    google: env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
+      ? { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET, redirectUri: `${publicBaseUrl}/api/auth/google/callback` }
+      : null,
   };
 }
 

@@ -10,7 +10,7 @@ const { bookingRoutes } = require('./routes/bookings');
 const { assistantRoutes } = require('./routes/assistant');
 const { pageRoutes } = require('./routes/pages');
 
-function createApp({ db, sessionSecret, secureCookies = false, bcryptRounds, now, modelClient = createModelClient() }) {
+function createApp({ db, sessionSecret, secureCookies = false, bcryptRounds, now, modelClient = createModelClient(), google = null }) {
   const services = createServices({ db, now, bcryptRounds, modelClient });
   const { auth, labService, bookingService, assistant } = services;
 
@@ -30,8 +30,7 @@ function createApp({ db, sessionSecret, secureCookies = false, bcryptRounds, now
   app.use(express.json());
   app.use('/assets', express.static(path.join(__dirname, '..', 'public')));
   app.use(loadUser(auth, sessionSecret));
-
-  app.use('/api/auth', authRoutes({ auth, secret: sessionSecret, secureCookies }));
+  app.use('/api/auth', authRoutes({ auth, secret: sessionSecret, secureCookies, google }));
   app.use('/api/labs', labRoutes({ labService }));
   app.use('/api/bookings', bookingRoutes({ bookingService }));
   app.use('/api/assistant', assistantRoutes({ assistant }));

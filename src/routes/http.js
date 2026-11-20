@@ -65,4 +65,4 @@ function sendError(res, err) {
   return res.status(500).json({ error: 'Something went wrong. Please try again.' });
 }
 
-module.exports = { COOKIE, loadUser, requireUserApi, sendError, setSessionCookie, clearSessionCookie };
+module.exports = { COOKIE, loadUser, requireUserApi, sendError, setSessionCookie, clearSessionCookie, readCookie };

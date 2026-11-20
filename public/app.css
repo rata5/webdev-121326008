@@ -68,3 +68,6 @@ a { color: var(--accent); }
 .suggestion { display: grid; gap: var(--space-1); padding: var(--space-2) var(--space-3); border: 1px dashed var(--accent); border-radius: var(--radius); }
 .suggestion button { justify-self: start; }
 .tag { justify-self: start; font-size: var(--text-sm); font-weight: 600; color: var(--accent); }
+.link-button { display: inline-flex; align-items: center; text-decoration: none; }
+.link-button.secondary { background: transparent; color: var(--accent); }
+.or { margin: var(--space-3) 0 0; }

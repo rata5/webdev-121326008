@@ -23,6 +23,13 @@ describe('configuration', () => {
     expect(() => loadConfig({ ...env, SESSION_SECRET: 'change-me' })).toThrow('placeholder');
   });
 
+  it('turns Google sign-in on only with both Google values, with its redirect URI on PUBLIC_BASE_URL', () => {
+    expect(loadConfig(env)).toMatchObject({ google: null, publicBaseUrl: 'http://localhost:3000' });
+    expect(loadConfig({ ...env, GOOGLE_CLIENT_ID: 'id' }).google).toBeNull();
+    const withGoogle = loadConfig({ ...env, GOOGLE_CLIENT_ID: 'id', GOOGLE_CLIENT_SECRET: 's', PUBLIC_BASE_URL: 'https://labs.example/' });
+    expect(withGoogle.google).toEqual({ clientId: 'id', clientSecret: 's', redirectUri: 'https://labs.example/api/auth/google/callback' });
+  });
+
   it('reads the port and NODE_ENV, with defaults when they are not set', () => {
     expect(loadConfig(env)).toMatchObject({ port: 3000, production: false, sessionSecret: env.SESSION_SECRET });
     expect(loadConfig({ ...env, PORT: '10000', NODE_ENV: 'production' })).toMatchObject({ port: 10000, production: true });
