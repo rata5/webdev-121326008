@@ -67,6 +67,21 @@ Lab booking.
 ## Architecture
 <!-- Exercise 3. One request traced through every layer, naming the file for each one,
      plus one place where your own code does not match this layering. -->
+Request traced: a user finds an empty slot, "POST /api/bookings ".
+1.Browser: "public/labs.js" sends the request when the user reserves a spot.
+2.Session: "src/routes/bookings.js" reads the signed cookie and puts the user on `req.user`; `requireUser` answers 401 cookie is missing.
+3.Route: "src/routes/bookings.js" takes the id from the URL and calls "bookingService.book(req.user, req.body)".
+4.Service: "src/services/bookings.js" checks that the lab exists (404), is already booked by user (403), is not already occupied by another user (409), and is within the premitted hours.
+5.Data access: "src/data/bookings.js" runs "'INSERT INTO bookings (user_id, lab_id, date, start_hour) VALUES ($1, $2, $3, $4) RETURNING id, user_id, lab_id, date, start_hour'".
+6.Database: the labs table in PostgreSQL, where it checks if labs are taken.
+
+| Screen                          | Rendered on | Why | What the user sees while data loads |
+| ------                          | ----------- | --- | ----------------------------------- |
+| Sign in / Sign up               | signin.html | rendering on the server avoids an empty page with a spinner before the description appears |                                              directly shows the sign in form|
+| Lab list, with "Find me a slot" | labs.js     | otherwise it would refresh the page everytime a spot was marked | the lists with labs and their own booked seats|
+| My bookings                     | labs.js     | otherwise it would refresh the whole page when cancelling a booking| the lists with labs and their own booked seats|
+| Profile                         | not build yet
+| Admin, labs                     | not build yet
 
 ## Acceptance criteria
 <!-- Every criterion carries an id. A test proves it by naming that id in its title.
