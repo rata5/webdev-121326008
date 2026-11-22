@@ -1,18 +1,14 @@
 # Readiness report: LabBookingBg
 
 ## 1. Live URL and how to verify it
-How i ckecked: curl -i https://webdev-121326008.onrender.com/health
-
 - Live site: https://webdev-121326008.onrender.com
-- Health check: https://webdev-121326008.onrender.com/health. It shows {"status":"ok","db":"ok"}.
 - Sign in: https://webdev-121326008.onrender.com/signin. The site's main address sends you here too.
 - Lab list and My bookings: https://webdev-121326008.onrender.com/labs. This opens after you sign in.
 
-## 2. Environment variables
-How i checked: grep -rhoE "env\.[A-Z][A-Z_]+" src mcp-server | sort -u src mcp-server | sort -u AND
-               grep -E '^[A-Z_]+=' .env.example | cut -d= -f1
-show the same result
+# how I checked:
+- curl -i https://webdev-121326008.onrender.com/health It shows {"status":"ok","db":"ok"}.
 
+## 2. Environment variables
 - DATABASE_URL
 Purpose: the PostgreSQL connection string, which carries the app to Neon.
 From: Neon's Connect dialog, with sslmode=verify-full. The same value goes in .env and in Render's Environment.
@@ -53,9 +49,20 @@ From: gemini-2.5-flash, the same in both places.
 Purpose: the session the MCP tools act as. It's needed only for npm run mcp in the codespace, not on Render.
 From: the part of your lb_session cookie before the dot, or the curl sign-in from step 3k.
 
-## 3. What happens when things fail
-How i checked: by breaking every function and checking the logs
+# how I checked:
+- grep -rhoE "env\.[A-Z][A-Z_]+" src mcp-server | sort -u and grep -E '^[A-Z_]+=' .env.example | cut -d= -f1 list the same names.
+- checked if .env-example and Render use the same API keys
+- grep -o "sslmode=[a-z-]*" .env prints sslmode=verify-full
+- grep -oE "^SESSION_SECRET=.{6}" .env shows the first 6 characters of the secret
+- grep "^PORT=" .env print PORT=3000 and after npm start it prints lab-booking listening on http://localhost:3000
+- grep "^NODE_ENV=" .env prints NODE_ENV=development. On Render it shows production
+- grep "^PUBLIC_BASE_URL=" .env returns the codespace address PUBLIC_BASE_URL=https://infamous-seance-jjjw76x6qgp2pq97-3000.app.github.dev
+and Render shows the onrender.com one.
+- curl -sI https://webdev-121326008.onrender.com/api/auth/google | grep -i '^location' prints google address containing a callback
+- grep -n client_secret src/google/client.js returns only line 22. This is the servers own request to google. The secret never reaches the browser.
+-
 
+## 3. What happens when things fail
 - The database is down:
 1. On start: the server starts anyway and logs "database: not reachable yet (…reason…)."
 2. /health: answers 503 with {"status":"error","db":"down"} and logs "health: the database cannot be reached (…)."
@@ -82,9 +89,38 @@ How i checked: by breaking every function and checking the logs
 
 - The deploy gate is CI plus Render. When a check fails on GitHub, Render skips that auto-deploy and records it under Events, and the live site keeps running the previous commit.
 
-## 4. Four states of one screen
-How i ckecked: By black box testing the site. Screenshots provided in docs/
+# how I checked:.
+- the database is down
+- get a cookie while the database is still up using read -s -p "Password: " PW; echo
+curl -s -c /tmp/local.txt -o /dev/null -w '%{http_code}\n' -H 'Content-Type: application/json' -d "{\"email\":\"YOUR-EMAIL\",\"password\":\"$PW\"}" localhost:3000/api/auth/signin
+1. start the container docker run --rm -it --init -p 3000:3000 --env-file .env -e DATABASE_URL=postgresql://user:wrong@localhost:5432/none labbooking
+it prints database: not reachable yet ()
+2. curl -s -w '  → %{http_code}\n' localhost:3000/health prints {"status":"error","db":"down"} 503
+3. curl -s -o /dev/null -w '%{http_code}\n' localhost:3000/signin prints 200
+4. curl -s -w '  → %{http_code}\n' -H 'Content-Type: application/json' -d '{"email":"a@tu-sofia.bg","password":"whatever-123"}' localhost:3000/api/auth/signin prints {"error":"Something went wrong. Please try again."}  500
+5. curl -s -b /tmp/local.txt -w '  → %{http_code}\n' localhost:3000/labs prints {"error":"Something went wrong. Please try again."} 500
+6. time curl -s -o /dev/null -w '%{http_code}\n' localhost:3000/health gives 503
 
+- The server can't be reached
+1. on live: devtools - network - offline and changing the date prints a red box with "Could not reach the server. Check your connection and try again." label
+
+- garbage input
+URL=https://webdev-121326008.onrender.com
+curl -s -c /tmp/jar.txt -o /dev/null -w '%{http_code}\n' -H 'Content-Type: application/json' -d "{\"email\":\"YOUR-EMAIL\",\"password\":\"$PW\"}" $URL/api/auth/signin
+post() { curl -s -b /tmp/jar.txt -w '  → %{http_code}\n' -H 'Content-Type: application/json' -d "$1" $URL/api/bookings; }
+post '{"labId": 1'                                      prints 400
+post '{}'                                               prints 401
+post '{"labId":1,"date":"2026-02-30","hour":10}'        prints 401
+post '{"labId":9999,"date":"2026-11-24","hour":10}'     prints 401
+post '{"labId":1,"date":"2026-11-28","hour":10}'        prints 401
+post '{"labId":1,"date":"2026-11-24","hour":21}'        prints 401
+post '{"labId":1,"date":"2026-11-20","hour":10}'        prints 401
+curl -s -w '  → %{http_code}\n' -H 'Content-Type: application/json' -d '{"labId":1,"date":"2026-11-24","hour":10}' $URL/api/bookings                                                prints 401
+curl -s -b 'lb_session=forged.value' -w '  → %{http_code}\n' -H 'Content-Type: application/json' -d '{"labId":1,"date":"2026-11-24","hour":10}' $URL/api/bookings                                            prints 401
+curl -s -w '  → %{http_code}\n' $URL/nope               prints 404
+curl -s -w '  → %{http_code}\n' $URL/api/nope           prints 404
+
+## 4. Four states of one screen
 - Loading:
 while GET /api/labs?date=… is on its way, the list shows "Loading labs…" and two grey placeholder cards. Each card keeps 160px of room, so the page doesn't jump when the labs arrive. My bookings shows "Loading your bookings…" at the same time. To see it, set Network throttling to a slow preset and reload.
 
@@ -103,9 +139,23 @@ the server answered 500: "Something went wrong. Please try again."
 the request never arrived (blocked in DevTools, offline): "Could not reach the server. Check your connection and try again."
 any other error without a message: "Could not load the labs. Please try again."
 
-## 5. Request waterfall
-How i checked: by pressing f12 on the site and reloading the page. Finish 2,36ms | DOMContentLoaded 1.25s | Load 1.25s
+# how I checked:
+- loading
+by seting network throthling to 3g and reloading "Loading labs…" with two grey cards, and "Loading your bookings…" appears.
 
+- content
+by picking a workday it reads "3 labs. Green slots are free; slots that have started are shown as Past."
+free slots have green "Book" buttons, picked a past weekday and every slot shows Past, booking a slot in the future shows taken.
+
+- nothing to show
+docker run -d --name pgtest -e POSTGRES_PASSWORD=pw -p 5433:5432 postgres:16-alpine
+sleep 5
+DATABASE_URL=postgresql://postgres:pw@127.0.0.1:5433/postgres npm start     # terminal 1
+docker exec pgtest psql -U postgres -c 'DELETE FROM labs'                   # terminal 2, once terminal 1 shows its database line
+then open port 3000 and use a new account, /labs shows "There are no labs yet. An admin can add the first one." then clean with ctrl+c
+and docker rm -f pgtest
+
+## 5. Request waterfall
 - The requests, in order:
 1. GET /labs, the page itself. Before sending labs.html, the server checks the session with two database queries: find the session, then the user.
 GET /assets/app.css and GET /assets/labs.js. Both start once the HTML arrives: the CSS link is in <head>, the script at the end of <body>. They're plain files served before the session check, so they cost no database queries.
@@ -118,11 +168,9 @@ GET /api/bookings/mine fetches My bookings: 2 session queries plus 1 for your up
 
 3. What drives the total time: each database query travels from Render in Frankfurt to Neon in Ohio and back, and /api/labs makes four of them in a row, so expect it to be the slowest. For the total, use Finish at the bottom of the Network tab, since it includes the API calls. Load fires before they're done. Measure with the service already awake: reload twice, and record a cold first visit separately if you like, since it can take about a minute.
 
-## 6. Security basics checked
-How i checked: with git log -p i check if .env and .dockerfile were pushed to production.
-With curl -sI http://webdev-121326008.onrender.com/ | head -3 i checked whether it is http or https.
-Without signing in i tried to access the database, resulting in 401
+# how I checked:
 
+## 6. Security basics checked
 - .gitignore keeps .env out of git, and .dockerignore keeps it out of the Docker image.
 
 - Render serves the site over HTTPS with a valid certificate. If you try http://webdev-121326008.onrender.com Render redirects you to https://. In the code, NODE_ENV=production makes the session cookie Secure.
@@ -155,9 +203,9 @@ Without signing in i tried to access the database, resulting in 401
 
 - The X-Powered-By header is turned off.
 
-## 7. Known gaps, ranked by risk
-How i checked: repeating the wrong password with a for loop. Disconnected the database and tried GET and POST queries, resulting in a JSON answer.
+# how I checked:
 
+## 7. Known gaps, ranked by risk
 - Security:
 Nothing limits repeated wrong passwords. POST /api/auth/signin answers every attempt; there's no rate limit and no lockout. Only bcrypt makes each guess a little slow. POST /api/auth/signup has no limit either.
 No extra security headers. There's no Content-Security-Policy and no helmet.
@@ -176,9 +224,9 @@ The database is in Ohio, the app in Frankfurt. Every query crosses the Atlantic:
 No favicon. The browser's automatic /favicon.ico request goes through the session check (2 queries) to get a 404.
 Expired sessions that are never used again stay in the sessions table forever. They're deleted only on sign-out or when someone uses them; nothing cleans up the rest.
 
-## 8. Model feature
-How i checked: by using the prompt function in src/services/assistant.js and src/model/client.js i can tell how many characters can the prompt be and by visiting https://ai.google.dev/gemini-api/docs/pricing i can tell how much each API call will cost. By removing the key i tested whether i'll get the "The assistant is unavailable right now, you can still pick a slot from the list." error message. By using npx vitest run test/assistant.test.js --reporter=verbose | grep AC-10 i got the timeout, rate-limit and provider-down tests, each passing.
+# how I checked:
 
+## 8. Model feature
 - What leaves the app:
 1. Destination: Google's Gemini API, at https://generativelanguage.googleapis.com/v1beta/models/<gemini-2.5-flash>:generateContent, over HTTPS. The key travels in the x-goog-api-key header.
 2. Contents: the request exactly as the user typed it, up to 300 characters. Whatever someone types there goes to Google. Today's date. The free slots for the next 7 days: lab name, room, seats, date and hour.
@@ -194,9 +242,9 @@ MODEL_NAME is gemini-2.5-flash. The code asks for a JSON answer at temperature 0
 4. An answer that isn't the JSON asked for, or holds no usable suggestion: "No matching free slot found, try another day."
 5. Every suggestion from the model is checked against the database. Only real, free, future, open slots within the next 7 days survive, with no repeats and at most 3.
 
-## 9. MCP
-How i checked: echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | npm run --silent mcp prints a got: … line, then a JSON line with 7 tools. By using the wrong MCP token i got: "MCP_TOKEN is missing or has expired: …"
+# how I checked:
 
+## 9. MCP
 - The tools:
 list_lectures and find_lecture: the course lectures from mcp-server/lectures.json. They need neither the database nor a token.
 list_labs, find_free_slots, book_slot, list_my_bookings and cancel_booking: these call the same services in src/services/ as the website. So they follow the same rules and give the same messages, which is AC-11, tested in test/mcp.test.js.
@@ -205,3 +253,5 @@ list_labs, find_free_slots, book_slot, list_my_bookings and cancel_booking: thes
 Whoever starts the server where DATABASE_URL and MCP_TOKEN are available. npm run mcp reads both from .env.
 It talks over stdin and stdout and opens no network port, so nobody outside the codespace can reach it.
 Without a valid token, the five project tools refuse with "MCP_TOKEN is missing or has expired…". Without DATABASE_URL, they refuse with "DATABASE_URL is not set…".
+
+# how I checked:
