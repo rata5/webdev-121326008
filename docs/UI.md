@@ -117,7 +117,8 @@ A screen that only handles "it worked" is a screen that lies to the user on the 
 ## Decisions
 
 - [X] **Dark mode, or a written decision not to have one.**
-  # what I decided and why: it support both light and dark mode. It depends on the users browser settings which one they see.
+  # what I decided and why:
+  it support both light and dark mode. It depends on the users browser settings which one they see.
 
 ## Evidence
 

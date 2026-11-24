@@ -169,6 +169,82 @@ GET /api/bookings/mine fetches My bookings: 2 session queries plus 1 for your up
 3. What drives the total time: each database query travels from Render in Frankfurt to Neon in Ohio and back, and /api/labs makes four of them in a row, so expect it to be the slowest. For the total, use Finish at the bottom of the Network tab, since it includes the API calls. Load fires before they're done. Measure with the service already awake: reload twice, and record a cold first visit separately if you like, since it can take about a minute.
 
 # how I checked:
+devtools - netweork - disable cache
+devtools - console:
+
+-requests in order
+const nav = performance.getEntriesByType('navigation')[0];
+const first = (part) => performance.getEntriesByType('resource').find((e) => e.name.includes(part));
+const wait = (e) => Math.round(e.responseStart - e.requestStart);
+result: undefined
+
+"GET /labs, the page itself"
+nav.name
+result: 'https://infamous-seance-jjjw76x6qgp2pq97-3000.app.github.dev/labs'
+
+"two database queries" for the page, "no database queries" for the files, and the counts for each API call.
+console.table([['/labs (page)', wait(nav)], ...['/assets/app.css', '/assets/labs.js', '/api/auth/me', '/api/labs?', '/api/bookings/mine'].map((p) => [p, wait(first(p))])]);
+result:
+(index)         0               1
+0:        '/labs (page)'	    1227
+1:	      '/assets/app.css'	    302
+2:	      '/assets/labs.js'	    374
+3:	      '/api/auth/me'	    1277
+4:	      '/api/labs?'	        869
+5:	      '/api/bookings/mine'	1328
+
+"Both start once the HTML arrives"
+console.log('HTML first byte', Math.round(nav.responseStart), 'ms · app.css started', Math.round(first('app.css').startTime), 'ms · labs.js started', Math.round(first('labs.js').startTime), 'ms');
+result: HTML first byte 1231 ms · app.css started 1238 ms · labs.js started 1238 ms
+
+"the CSS link is in <head>, the script at the end of <body>"
+[document.head.querySelector('link[rel=stylesheet]').outerHTML, document.body.lastElementChild.outerHTML]
+result:
+0:"<link rel=\"stylesheet\" href=\"/assets/app.css\">"
+1:"<script src=\"/assets/labs.js\"></script>"
+
+"three API requests start at the same moment"
+console.table(['/api/auth/me', '/api/labs?', '/api/bookings/mine'].map((p) => ({ request: p, 'started ms': Math.round(first(p).startTime), 'ms after labs.js arrived': Math.round(first(p).startTime - first('labs.js').responseEnd) })));
+result:
+(index) |       request         | started ms | ms after labs.js arrived
+0	    '/api/auth/me'	            1763	                1
+1	    '/api/labs?'	            1763	                2
+2	    '/api/bookings/mine'	    1763	                2
+
+"/api/auth/me shows your email in the header"
+[document.querySelector('#who').textContent, (await (await fetch('/api/auth/me')).json()).user.email]
+result:
+["stefanrusev02@gmail.com", "stefanrusev02@gmail.com"]
+
+- what waits for what
+"the lab list appears when /api/labs answers"
+const t0 = performance.now();
+const obs = new MutationObserver(() => { if (document.querySelector('#labs .card')) { obs.disconnect(); const e = performance.getEntriesByType('resource').filter((x) => x.name.includes('/api/labs?')).pop(); console.log('/api/labs answered after', Math.round(e.responseEnd - t0), 'ms · list drawn after', Math.round(performance.now() - t0), 'ms'); } });
+obs.observe(document.querySelector('#labs'), { childList: true });
+const d = document.querySelector('#date'); d.value = '2026-11-25'; d.dispatchEvent(new Event('change'));
+result:
+true
+/api/labs answered after 1888 ms · list drawn after 1890 ms
+
+- what drives the total time
+"/api/labs … expect it to be the slowest"
+async function waits(url, n = 5) { const o = []; for (let i = 0; i < n; i++) { const r = await fetch(url, { cache: 'no-store' }); await r.text(); await new Promise((ok) => setTimeout(ok, 100)); const e = performance.getEntriesByType('resource').filter((x) => x.name.endsWith(url)).pop(); o.push(Math.round(e.responseStart - e.requestStart)); } return o; }
+for (const url of ['/api/auth/me', '/api/labs?date=2026-11-24', '/api/bookings/mine']) console.log(url, await waits(url));
+result:
+/api/auth/me (5) [1111, 507, 521, 547, 639]
+/api/labs?date=2026-11-24 (5) [652, 638, 679, 666, 522]
+/api/bookings/mine (5) [556, 541, 635, 591, 464]
+
+"Load fires before they're done"
+console.log('Load', Math.round(nav.loadEventStart), 'ms · last API call done', Math.round(Math.max(...['/api/auth/me', '/api/labs?', '/api/bookings/mine'].map((p) => first(p).responseEnd))), 'ms');
+result:
+load comes first and the API calls later, resulting in: undefined
+
+"a cold first visit … about a minute"
+Math.round(nav.responseStart - nav.requestStart)
+result:
+1227
+
 
 ## 6. Security basics checked
 - .gitignore keeps .env out of git, and .dockerignore keeps it out of the Docker image.
@@ -204,6 +280,91 @@ GET /api/bookings/mine fetches My bookings: 2 session queries plus 1 for your up
 - The X-Powered-By header is turned off.
 
 # how I checked:
+- .env kept out of git and the Docker image
+git check-ignore -v .env
+git ls-files .env
+git log --oneline --all -- .env
+grep -n "^\.env" .dockerignore
+docker run --rm labbooking ls -a
+
+- HTTPS, the certificate, the redirect and Secure
+[location.protocol, window.isSecureContext]
+result: ["https:",true]
+
+curl -sv -o /dev/null $URL/health 2>&1 | grep -E "SSL certificate verify ok|expire date|issuer"
+result:
+*  expire date: Feb 17 22:53:10 2027 GMT
+*  issuer: C=US; O=Google Trust Services; CN=WE1
+*  SSL certificate verify ok.
+
+curl -sI http://webdev-121326008.onrender.com/ | grep -i -E "^HTTP|^location"
+result:
+HTTP/1.1 301 Moved Permanently
+Location: https://webdev-121326008.onrender.com/
+
+- The endpoint list
+for (const [method, url] of [['POST', '/api/bookings'], ['DELETE', '/api/bookings/1'], ['POST', '/api/labs'], ['POST', '/api/assistant/suggest']]) {
+  const r = await fetch(url, { method, credentials: 'omit', headers: { 'Content-Type': 'application/json' }, body: method === 'POST' ? '{}' : undefined });
+  console.log(method, url, r.status, await r.text());
+}
+result:
+VM77:2  POST https://infamous-seance-jjjw76x6qgp2pq97-3000.app.github.dev/api/bookings 401 (Unauthorized)
+VM77:3 POST /api/bookings 401
+VM77:2  DELETE https://infamous-seance-jjjw76x6qgp2pq97-3000.app.github.dev/api/bookings/1 401 (Unauthorized)
+VM77:3 DELETE /api/bookings/1 401
+VM77:2  POST https://infamous-seance-jjjw76x6qgp2pq97-3000.app.github.dev/api/labs 401 (Unauthorized)
+VM77:3 POST /api/labs 401
+VM77:2  POST https://infamous-seance-jjjw76x6qgp2pq97-3000.app.github.dev/api/assistant/suggest 401 (Unauthorized)
+VM77:3 POST /api/assistant/suggest 401
+
+- booking with someone elses id in the body
+const me = (await (await fetch('/api/auth/me')).json()).user;
+const r = await fetch('/api/bookings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ labId: 1, date: '2026-11-25', hour: 16, userId: me.id + 1 }) });
+console.log(r.status, await r.text());
+console.log(await (await fetch('/api/bookings/mine')).json());
+result:
+201 '{"booking":{"id":7,"user_id":1,"lab_id":1,"date":"2026-11-25","start_hour":16},"message":"Booking confirmed"}'
+the booking shows in your list, the userId was ignored
+
+fetch('/api/bookings/999999', { method: 'DELETE' }).then(async (r) => console.log(r.status, await r.text()))
+result:
+VM85:1  DELETE https://infamous-seance-jjjw76x6qgp2pq97-3000.app.github.dev/api/bookings/999999 404 (Not Found)
+VM85:1 404 '{"error":"Booking not found"}'
+
+fetch('/api/labs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).then(async (r) => console.log(r.status, await r.text()))
+result:
+403 '{"error":"Only an admin can add a lab"}'
+
+Sign-out without a session:
+const r = await fetch('/api/auth/signout', { method: 'POST', credentials: 'omit' });
+console.log('signout without a session:', r.status, '· still signed in:', (await fetch('/api/auth/me')).status);
+result:
+signout without a session: 401 · still signed in: 200
+
+- The Google callback's state cookie
+curl -sI $URL/api/auth/google | grep -i set-cookie
+curl -sI "$URL/api/auth/google/callback?code=x&state=y" | grep -i -E "^HTTP|^location|^set-cookie"
+result:
+set-cookie: lb_google_state=23a9a2bb92a374da9c5fba01e857655b; Max-Age=600; Path=/api/auth/google; Expires=Mon, 23 Nov 2026 22:02:01 GMT; HttpOnly; Secure; SameSite=Lax
+HTTP/2 302
+location: /signin?error=Google%20sign-in%20did%20not%20finish.%20Please%20try%20again.
+set-cookie: lb_google_state=; Path=/api/auth/google; Expires=Thu, 01 Jan 1970 00:00:00 GMT
+
+- The lb_session cookie flags
+[document.cookie.includes('lb_session'), (await fetch('/api/auth/me')).status]
+result:
+[false, 200]
+
+curl -s -o /dev/null -D - -H 'Content-Type: application/json' -d "{\"email\":\"stefanrusev02@gmail.com\",\"password\":\"$PW\"}" $URL/api/auth/signin | grep -i set-cook
+ie
+
+
+
+
+
+
+
+
 
 ## 7. Known gaps, ranked by risk
 - Security:
