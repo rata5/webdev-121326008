@@ -62,7 +62,7 @@ function createLabService({ labs, now = () => new Date(), timeZone = 'Europe/Sof
     return labs.add(lab);
   }
   const todayDate = () => localNow(now(), timeZone).date;
-  return { listWithSlots, addLab };
+  return { listWithSlots, addLab, todayDate };
 }
 
 module.exports = { createLabService, parseDate, localNow, FIRST_HOUR, LAST_HOUR };
