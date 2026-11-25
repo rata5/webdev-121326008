@@ -1,5 +1,4 @@
 # Instructions for the agent
-
 Read this file at the start of every session. Keep it short and correct; update it when the project changes.
 
 ## Project
@@ -13,7 +12,7 @@ LabBookingBg lets teachers see which university labs are free on a given day and
 - Run: `npm start` (needs DATABASE_URL and SESSION_SECRET in .env; serves http://localhost:3000; migrations run at start)
 - Test: `npm test` (runs on PGlite, PostgreSQL inside Node, so it needs no DATABASE_URL)
 - Coverage: `npm run coverage`
-- MCP server: `npm run mcp`
+- MCP server: `npm run --silent mcp`
 
 ## Conventions
 <!-- Folder layout, naming, where business rules live, how errors are returned to the client. -->
