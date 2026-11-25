@@ -60,6 +60,8 @@ Lab booking.
   1. Sign in / Sign up: email and password form, "Sign in with Google" button, link between the two forms.
   2. Lab list (Slice 1): a date picker and every lab with its free and taken one-hour slots for that day; a free slot has a "Book" button. The "Find me a slot" box sits at the top of this screen: the user types a request and sees up to 3 suggestions labelled "Suggestion".
   3. My bookings: the user's upcoming bookings with lab, date and hour, each with a "Cancel" button; when empty it says "No bookings yet" with a link to the lab list.
+
+  not build
   4. Profile: email, linked sign-in methods, "Link Google account" and "Set a password" buttons, sign out.
   5. Admin, labs: a form to add a lab (name, room number, capacity) and the list of labs; only visible to admins.
 - Every screen has a loading, empty, error and success state, and works at 380, 768 and 1280 px wide; the full checklist is in `docs/UI.md`.
@@ -87,7 +89,6 @@ Request traced: a user finds an empty slot, "POST /api/bookings ".
 <!-- Every criterion carries an id. A test proves it by naming that id in its title.
      Say who acts, what they see, and what must be true in the database. -->
 
-### Slice 1: sign-in and the lab list
 - [AC-1] A signed-in user who books a free slot (POST /api/bookings) gets 201 and sees "Booking confirmed", and one new row appears in bookings with their user id, the lab id, the date and the hour.
 - [AC-2] A second user who tries to book the same lab for the same slot gets 409 and sees "This slot is already taken", and no new row appears in bookings.
 - [AC-3] A signed-in user who tries to book a slot that has already started gets 422 and sees "You cannot book a past slot", and no new row appears in bookings.
@@ -100,12 +101,15 @@ Request traced: a user finds an empty slot, "POST /api/bookings ".
 - [AC-10] With no `GEMINI_API_KEY` set, a user who asks "Find me a slot" sees "The assistant is unavailable right now, you can still pick a slot from the list." and up to 3 free slots for the chosen date, read from the database.
 - [AC-11] The MCP tool `book_slot`, asked to book a slot that is already taken, refuses with "This slot is already taken", the same message the API returns, and no new row appears in `bookings`.
 
-### Slice 2: booking a slot and cancelling it
+### Slice 1: sign-in and the lab list
 - [AC-12] A visitor who opens `/labs` without signing in is redirected to `/signin` (302), `GET /api/labs` answers 401, and no row is added or changed in any table.
 - [AC-13] A user who signs in and opens `/labs` for a weekday sees every lab from the `labs` table with its 12 one-hour slots from 08:00 to 20:00, each marked "Free" or "Taken" to match the rows in `bookings` for that date.
 - [AC-14] Deleting one row from `labs` in the database and reloading `/labs` removes that lab from the screen.
 - [AC-15] A user who signs in with a wrong password sees "Wrong email or password", and no row is added to `sessions`.
 - [AC-16] On today's date, slots whose start time has already passed are shown as "Past", not "Free".
+
+### Slice 2: booking a slot and cancelling it
+<!--the slice also covers AC-1 to AC-6-->
 - [AC-17] A visitor who is not signed in gets 401 from POST /api/bookings, DELETE /api/bookings/:id and GET /api/bookings/mine, and no row changes in bookings.
 - [AC-18] Booking a lab id that does not exist gets 404 "Lab not found", cancelling a booking id that does not exist gets 404 "Booking not found", and no row changes in bookings.
 - [AC-19] Booking a Saturday or Sunday, or an hour outside 08:00-20:00, gets 422 "Labs can be booked Monday to Friday, 08:00 to 20:00"; a request without a lab id, a real date (YYYY-MM-DD) and a whole hour gets 400; no row is added to bookings.
@@ -142,3 +146,4 @@ Request traced: a user finds an empty slot, "POST /api/bookings ".
 - Reinterpreted: the UI section said React with Vite, but the slice was built with plain HTML, CSS and JavaScript served by Express, to keep slice 1 small. There are no seeded user accounts: a user creates one on the sign-up form.
 - Missed: on today's date, slots whose hour had already started were shown as "Free", because only the booking rule (AC-3) mentioned the past and no list criterion did.
 - Changed: added AC-16 (slots that have started are shown as "Past") and fixed the list to match; the UI section now names plain HTML, CSS and JavaScript instead of React with Vite.
+- Admin and Profile are not build. An Admin adds a lab through POST /api/labs
