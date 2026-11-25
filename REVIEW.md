@@ -157,8 +157,11 @@ Evidence: <the line you read, the request you sent, or the test that failed>
 
 ## The model feature, the MCP server and authorization
 
-- Model feature: <what goes to Google and what doesn't, what a user sees with no key or a slow answer, how the answer is checked, and R15>
-- MCP server: <what the grep showed, how the tools reach the data, whose rights they use, R10 and R17>
+- Model feature: v1beta/models';
+src/model/client.js:9:  apiKey = process.env.GEMINI_API_KEY,
+src/model/client.js:10:  model = process.env.MODEL_NAME || 'gemini-2.5-flash',
+src/model/client.js:15:    if (!apiKey) throw failure('no_key', 'GEMINI_API_KEY is not set');
+- MCP server: grep -rnE "SELECT|INSERT|UPDATE|DELETE" mcp-server/ prints nothing. Every tool calls a service so the rules hold. R10 / R17
 - Authorization: <your step 5 requests and their answers, and the one write that didn't check who was asking, R2>
 
 ## Precision per pass
@@ -173,3 +176,25 @@ Evidence: <the line you read, the request you sent, or the test that failed>
 ## Replies to the review of my project
 
 <step 10: every confirmed finding, fixed with its two commit hashes, or not fixed and why>
+
+## Findings
+| ID | Title | Severity | Location | Source | Verdict | Evidence |
+| --- | --- | --- | --- | --- | --- | --- |
+| R1 | Real Neon password and session secret in `.env.example` | high | `.env.example:7`, `.env.example:9` | pass A | confirmed | `git log -S npg_ -- .env.example` shows c4152ad |
+| R2 | Google sign-in keeps the password of whoever registered the address first | high | `src/services/auth.js:66-69` | pass A | confirmed, fixed | test "R2 stops working once the owner signs in with Google" |
+| R3 | No limit on wrong passwords | medium | `src/services/auth.js:32-40` | pass A | confirmed, fixed | the two R3 tests in `test/auth.test.js` |
+| R4 | Two bookings at the same moment pass the 3-booking limit | low | `src/services/bookings.js:34-39` | pass A | confirmed, fixed | both R4 tests failed in CI run #19 and pass from 658fa91 |
+| R5 | A malformed session cookie gives 500 | low | `src/routes/http.js:24`, `src/routes/http.js:34` | pass A | confirmed, fixed | test "R5 counts as signed out instead of failing with 500" |
+| R6 | A failing page shows a raw JSON body | low | `src/app.js:52` | pass A | confirmed, fixed | test "R6 answers one sentence as plain text, never a JSON body" |
+| R7 | UI: CLS 0.29 and 0.38 at 380 px, but "nothing jumps" is ticked | low | `docs/UI.md:27-41` | pass A | confirmed, corrected in the docs | the CLS table in docs/UI.md |
+| R8 | UI: an inline style, but "sizes come from tokens" is ticked | low | `src/pages/signin.html:19` | pass A | confirmed, fixed | test "R8 no page or script sets a style inline" |
+| R9 | Accessibility: focus ring contrast 1.87:1 in light mode | low | `public/app.css:9` | pass A | confirmed, fixed | test "R9 the focus colour has at least 3:1" |
+| R10 | Layering: the MCP tools repeat service rules | low | `mcp-server/server.js:77`, `mcp-server/server.js:98` | pass A | confirmed, fixed | test "R10 names no time zone and decides no slot rule of its own" |
+| R11 | Sign-up reveals which addresses have an account | low | `src/services/auth.js:27` | pass A | confirmed, not fixed (by design) | sign-up answers 409 "An account with this email already exists" |
+| R12 | Synchronous password hashing blocks the server | low | `src/services/auth.js:28`, `src/services/auth.js:36` | pass A | confirmed, not fixed (known gap) | `bcrypt.hashSync` and `bcrypt.compareSync` |
+| R13 | No error listener on the database pool | low | `src/data/db.js:51` | pass A | confirmed, not fixed (known gap) | `grep -n "on('error'" src/data/db.js` prints nothing |
+| R14 | `/signin?error=` shows any text in the alert box | low | `public/signin.js:19-20` | pass A | confirmed, fixed | R14 failed in CI runs #19 and #20; passes after fix(R14) |
+| R15 | No per-user limit on "Find me a slot" | low | `src/routes/assistant.js:10` | pass A | confirmed, not fixed (known gap) | nothing counts calls per user |
+| R16 | A stray `pkill` file in the repository root | low | `pkill` | pass A | confirmed, removed | the file holds a shell command |
+| R17 | The MCP server acts with a full 7-day session token | low | `mcp-server/server.js:62` | pass A | confirmed, not fixed (known gap) | `MCP_TOKEN` is looked up as an ordinary session |
+| R18 | The request trace in SPEC.md names the wrong files and rules | low | `SPEC.md:72-76` | pass A | confirmed, corrected in the docs | the session check is in `src/routes/http.js` |
