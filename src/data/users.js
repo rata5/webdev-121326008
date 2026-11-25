@@ -18,8 +18,14 @@ function createUserStore(db) {
        WHERE i.provider = $1 AND i.provider_id = $2`,
       [provider, providerId],
     ),
-    addIdentity: (userId, provider, providerId) =>
+        addIdentity: (userId, provider, providerId) =>
       db.run('INSERT INTO identities (user_id, provider, provider_id) VALUES ($1, $2, $3)', [userId, provider, providerId]),
+    // Removes the password and the 'local' identity of one user, in one statement.
+    dropPassword: (userId) => db.run(
+      `WITH gone AS (DELETE FROM identities WHERE user_id = $1 AND provider = 'local')
+       UPDATE users SET password_hash = NULL WHERE id = $1`,
+      [userId],
+    ),
     // A new user with no password, and the provider identity they signed in with.
     createWithIdentity: (email, provider, providerId) => db.one(
       `WITH u AS (INSERT INTO users (email) VALUES ($1) RETURNING id, email, role),

@@ -113,3 +113,39 @@ describe('sessions (service rules, with a fake clock)', () => {
     await request(app).post('/api/auth/signin').send({ email: 'ana@tu-sofia.bg' }).expect(401);
   });
 });
+
+describe('R14 the sign-in page shows only its own error sentences', () => {
+  it('R14 drops any other ?error= text and keeps the ones the Google callback sends', async () => {
+    const spoofed = await request(app).get('/signin?error=Your%20account%20is%20locked.%20Call%20%2B359%20888%20000%20000');
+    expect(spoofed.status).toBe(302);
+    expect(spoofed.headers.location).toBe('/signin');
+    await request(app).get(`/signin?error=${encodeURIComponent('Google sign-in was cancelled.')}`).expect(200);
+  });
+});
+
+describe('R3 repeated wrong passwords', () => {
+  it('R3 after 5 wrong passwords even the right one is refused with 429, and no session is added', async () => {
+    await request(app).post('/api/auth/signup').send({ email: 'ana@tu-sofia.bg', password: 'correct-horse' }).expect(201);
+    for (let i = 0; i < 5; i += 1) {
+      await request(app).post('/api/auth/signin').send({ email: 'ana@tu-sofia.bg', password: 'wrong-guess' }).expect(401);
+    }
+    const sessionsBefore = (await rowCounts(db)).sessions;
+    const res = await request(app).post('/api/auth/signin').send({ email: 'ana@tu-sofia.bg', password: 'correct-horse' });
+    expect(res.status).toBe(429);
+    expect(res.body.error).toBe('Too many wrong passwords. Try again in 15 minutes.');
+    expect((await rowCounts(db)).sessions).toBe(sessionsBefore);
+  });
+
+  it('R3 the lock ends after 15 minutes, and a right password starts the count again', async () => {
+    let clock = Date.parse('2026-11-02T08:00:00Z');
+    const auth = createAuthService({ users: createUserStore(db), sessions: createSessionStore(db), now: () => clock, bcryptRounds: 4 });
+    await auth.signUp({ email: 'ana@tu-sofia.bg', password: 'correct-horse' });
+    const attempt = (password) => auth.signIn({ email: 'ana@tu-sofia.bg', password });
+    for (let i = 0; i < 4; i += 1) await expect(attempt('wrong-guess')).rejects.toMatchObject({ code: 'WRONG_CREDENTIALS' });
+    await attempt('correct-horse'); // the right password clears the 4 failures
+    for (let i = 0; i < 5; i += 1) await expect(attempt('wrong-guess')).rejects.toMatchObject({ code: 'WRONG_CREDENTIALS' });
+    await expect(attempt('correct-horse')).rejects.toMatchObject({ code: 'TOO_MANY_ATTEMPTS' });
+    clock += 15 * 60 * 1000;
+    expect((await attempt('correct-horse')).user.email).toBe('ana@tu-sofia.bg');
+  });
+});

@@ -175,3 +175,13 @@ describe('AC-5, AC-6 and AC-18 cancelling', () => {
     }
   });
 });
+
+describe('R4 two bookings sent at the same moment', () => {
+  it('R4 cannot take a user past 3 upcoming bookings', async () => {
+    for (const hour of [11, 12]) await service.book(ana, { labId: lab, date: '2026-11-02', hour });
+    const results = await Promise.allSettled([13, 14].map((hour) => service.book(ana, { labId: lab, date: '2026-11-02', hour })));
+    expect(results.map((r) => r.status).sort()).toEqual(['fulfilled', 'rejected']);
+    expect(results.find((r) => r.status === 'rejected').reason.code).toBe('TOO_MANY_BOOKINGS');
+    expect((await rowCounts(db)).bookings).toBe(3);
+  });
+});

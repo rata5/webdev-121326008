@@ -6,16 +6,14 @@
   --bg: #f7f7f5; --surface: #ffffff; --text: #1d1d1b; --muted: #55554f;
   --border: #d6d6d0; --accent: #1f5fbf; --accent-text: #ffffff;
   --free-bg: #e5f3e8; --free-text: #1b5e2b; --taken-bg: #ececea; --taken-text: #55554f;
-  --error-bg: #fdecea; --error-text: #8a1c12; --focus: #f2a900;
-  color-scheme: light dark;
+  --error-bg: #fdecea; --error-text: #8a1c12; --focus: #9a6700;  color-scheme: light dark;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #161615; --surface: #20201e; --text: #ededea; --muted: #b4b4ad;
     --border: #3a3a37; --accent: #7fb0ff; --accent-text: #0d1b33;
     --free-bg: #173322; --free-text: #a6e3b5; --taken-bg: #2a2a28; --taken-text: #b4b4ad;
-    --error-bg: #3b1714; --error-text: #ffb4aa;
-  }
+    --error-bg: #3b1714; --error-text: #ffb4aa; --focus: #f2a900;  }
 }
 * { box-sizing: border-box; }
 body { margin: 0; font: var(--text-md)/1.5 system-ui, sans-serif; background: var(--bg); color: var(--text); }
@@ -71,3 +69,4 @@ a { color: var(--accent); }
 .link-button { display: inline-flex; align-items: center; text-decoration: none; }
 .link-button.secondary { background: transparent; color: var(--accent); }
 .or { margin: var(--space-3) 0 0; }
+.actions { margin-top: var(--space-4); }

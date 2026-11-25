@@ -73,3 +73,10 @@ describe('AC-11 MCP tools use the same rules as the API', () => {
     expect((await rowCounts(db)).bookings).toBe(0);
   });
 });
+
+describe('R10 the MCP server leaves the booking rules to the services', () => {
+  it('R10 names no time zone and decides no slot rule of its own', () => {
+    const { readFileSync } = require('node:fs');
+    expect(readFileSync('mcp-server/server.js', 'utf8')).not.toMatch(/Europe\/Sofia|slot\.free|slot\.past/);
+  });
+});

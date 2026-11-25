@@ -32,7 +32,7 @@ function createAssistantService({ labService, client, now = () => new Date(), ti
   async function freeOn(date) {
     return (await labService.listWithSlots(date)).labs
       .flatMap((lab) => lab.slots
-        .filter((slot) => slot.free && !slot.past)
+        .filter((slot) => slot.bookable)
         .map((slot) => ({ labId: lab.id, labName: lab.name, room: lab.room, capacity: lab.capacity, date, hour: slot.hour, label: slot.label })))
       .sort((a, b) => a.hour - b.hour);
   }

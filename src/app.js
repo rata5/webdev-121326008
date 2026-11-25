@@ -42,14 +42,18 @@ function createApp({ db, sessionSecret, secureCookies = false, bcryptRounds, now
     res.status(404).type('text').send('Page not found');
   });
 
-  // Something went wrong: the details go to the log, the user gets one sentence.
+    // Something went wrong: the details go to the log, the user gets one sentence, as JSON for
+  // the API and as plain text for a page, so a person never sees a raw JSON body.
   // Express knows this is the error handler because it takes four arguments.
   app.use((err, req, res, next) => {
     if (res.headersSent) return next(err);
-    if (err.type === 'entity.parse.failed') return res.status(400).json({ error: 'The request body is not valid JSON.' });
-    if (err.status >= 400 && err.status < 500) return res.status(err.status).json({ error: 'The request could not be read.' });
+    const answer = (status, message) => (req.path.startsWith('/api/')
+      ? res.status(status).json({ error: message })
+      : res.status(status).type('text').send(message));
+    if (err.type === 'entity.parse.failed') return answer(400, 'The request body is not valid JSON.');
+    if (err.status >= 400 && err.status < 500) return answer(err.status, 'The request could not be read.');
     console.error(err);
-    res.status(500).json({ error: 'Something went wrong. Please try again.' });
+    return answer(500, 'Something went wrong. Please try again.');
   });
 
   return { app, services };

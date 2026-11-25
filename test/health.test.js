@@ -66,11 +66,25 @@ describe('errors without stack traces', () => {
     const token = 'a'.repeat(64);
     const cookie = `lb_session=${token}.${createHmac('sha256', 'test-secret').update(token).digest('hex')}`;
     const log = await capturingErrors(async () => {
-      const res = await request(broken).get('/labs').set('Cookie', cookie);
+      const res = await request(broken).get('/api/bookings/mine').set('Cookie', cookie);
       expect(res.status).toBe(500);
       expect(res.body).toEqual({ error: 'Something went wrong. Please try again.' });
       expect(res.text).not.toContain('ECONNREFUSED');
     });
     expect(log).toContain('ECONNREFUSED');
+  });
+});
+
+describe('R6 a page that fails', () => {
+  it('R6 answers one sentence as plain text, never a JSON body', async () => {
+    const { app: broken } = createApp({ db: downDb, sessionSecret: 'test-secret' });
+    const token = 'a'.repeat(64);
+    const cookie = `lb_session=${token}.${createHmac('sha256', 'test-secret').update(token).digest('hex')}`;
+    await capturingErrors(async () => {
+      const res = await request(broken).get('/labs').set('Cookie', cookie);
+      expect(res.status).toBe(500);
+      expect(res.headers['content-type']).toMatch(/^text\/plain/);
+      expect(res.text).toBe('Something went wrong. Please try again.');
+    });
   });
 });

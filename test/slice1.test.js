@@ -121,3 +121,12 @@ describe('AC-16 slots that have started are past', () => {
     expect((await real.listWithSlots('2000-01-03')).labs[0].slots.every((s) => s.past)).toBe(true);
   });
 });
+
+describe('R5 a malformed session cookie', () => {
+  it('R5 counts as signed out instead of failing with 500', async () => {
+    for (const cookie of ['lb_session=%E0%A4%A', `lb_session=abc.${'é'.repeat(64)}`]) {
+      expect((await request(app).get('/api/auth/me').set('Cookie', cookie)).status).toBe(401);
+      expect((await request(app).get('/labs').set('Cookie', cookie)).headers.location).toBe('/signin');
+    }
+  });
+});

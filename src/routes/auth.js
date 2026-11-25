@@ -2,12 +2,16 @@
 const crypto = require('node:crypto');
 const express = require('express');
 const { AppError } = require('../services/errors');
+const { UNVERIFIED } = require('../services/auth');
 const { sendError, setSessionCookie, clearSessionCookie, readCookie } = require('./http');
 
 const STATE_COOKIE = 'lb_google_state';
 const GOOGLE_PATH = '/api/auth/google';
 const NOT_SET_UP = 'Google sign-in is not set up on this server.';
 const DID_NOT_FINISH = 'Google sign-in did not finish. Please try again.';
+const CANCELLED = 'Google sign-in was cancelled.';
+// Every sentence the Google callback can send back to the sign-in page, and nothing else.
+const SIGNIN_ERRORS = [NOT_SET_UP, DID_NOT_FINISH, CANCELLED, UNVERIFIED];
 
 function authRoutes({ auth, secret, secureCookies, google = null }) {
   const router = express.Router();
@@ -52,8 +56,7 @@ function authRoutes({ auth, secret, secureCookies, google = null }) {
     const expected = readCookie(req, STATE_COOKIE);
     res.clearCookie(STATE_COOKIE, { path: GOOGLE_PATH });
     if (!google) return backToSignIn(res, NOT_SET_UP);
-    if (req.query.error) return backToSignIn(res, 'Google sign-in was cancelled.');
-    // A callback this browser did not start is somebody trying to sign you in as them.
+    if (req.query.error) return backToSignIn(res, CANCELLED);    // A callback this browser did not start is somebody trying to sign you in as them.
     if (!req.query.code || !expected || req.query.state !== expected) return backToSignIn(res, DID_NOT_FINISH);
     try {
       const { token } = await auth.signInWithGoogle(await google.profile(String(req.query.code)));
@@ -74,4 +77,4 @@ function authRoutes({ auth, secret, secureCookies, google = null }) {
   return router;
 }
 
-module.exports = { authRoutes };
+module.exports = { authRoutes, SIGNIN_ERRORS };

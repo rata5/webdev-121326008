@@ -13,6 +13,7 @@ const STATUS = {
   TOO_MANY_BOOKINGS: 409,
   CLOSED: 422,
   PAST_SLOT: 422,
+  TOO_MANY_ATTEMPTS: 429,
 };
 
 function sign(value, secret) {
@@ -21,7 +22,12 @@ function sign(value, secret) {
 
 function readCookie(req, name) {
   const pair = (req.headers.cookie ?? '').split(';').map((p) => p.trim()).find((p) => p.startsWith(`${name}=`));
-  return pair ? decodeURIComponent(pair.slice(name.length + 1)) : null;
+  if (!pair) return null;
+  try {
+    return decodeURIComponent(pair.slice(name.length + 1));
+  } catch {
+    return null; // not valid percent-encoding: the same as no cookie at all
+  }
 }
 
 // The session token from the signed cookie, or null if it is missing or tampered with.
@@ -29,9 +35,11 @@ function sessionToken(req, secret) {
   const raw = readCookie(req, COOKIE);
   if (!raw) return null;
   const [token, mac] = raw.split('.');
-  const expected = sign(token ?? '', secret);
-  if (!mac || mac.length !== expected.length) return null;
-  return crypto.timingSafeEqual(Buffer.from(mac), Buffer.from(expected)) ? token : null;
+  const expected = Buffer.from(sign(token ?? '', secret));
+  const given = Buffer.from(mac ?? '');
+  // Compared as bytes: "é" is one character but two bytes, and timingSafeEqual needs equal lengths.
+  if (given.length !== expected.length) return null;
+  return crypto.timingSafeEqual(given, expected) ? token : null;
 }
 
 function setSessionCookie(res, token, secret, secure) {

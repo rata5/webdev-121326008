@@ -41,7 +41,10 @@ function createLabService({ labs, now = () => new Date(), timeZone = 'Europe/Sof
         slots: open
           ? Array.from({ length: LAST_HOUR - FIRST_HOUR + 1 }, (_, i) => {
               const hour = FIRST_HOUR + i;
-              return { hour, label: `${pad(hour)}:00–${pad(hour + 1)}:00`, free: !taken.has(`${lab.id}:${hour}`), past: isPast(hour) };
+              const free = !taken.has(`${lab.id}:${hour}`);
+              const past = isPast(hour);
+              // RULE AC-3, AC-16: a slot can be booked when it is free and has not started.
+              return { hour, label: `${pad(hour)}:00–${pad(hour + 1)}:00`, free, past, bookable: free && !past };
             })
           : [],
       })),
@@ -58,6 +61,7 @@ function createLabService({ labs, now = () => new Date(), timeZone = 'Europe/Sof
     }
     return labs.add(lab);
   }
+  const todayDate = () => localNow(now(), timeZone).date;
   return { listWithSlots, addLab };
 }
 

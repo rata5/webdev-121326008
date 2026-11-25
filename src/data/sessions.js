@@ -6,6 +6,8 @@ function createSessionStore(db) {
     // expires_at is a BIGINT; ::float8 brings it back as a JavaScript number.
     find: (tokenHash) => db.one('SELECT user_id, expires_at::float8 AS expires_at FROM sessions WHERE token_hash = $1', [tokenHash]),
     remove: (tokenHash) => db.run('DELETE FROM sessions WHERE token_hash = $1', [tokenHash]),
+    // Every session of one user: signs them out everywhere.
+    removeAllFor: (userId) => db.run('DELETE FROM sessions WHERE user_id = $1', [userId]),
   };
 }
 

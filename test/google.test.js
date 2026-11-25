@@ -145,3 +145,18 @@ describe('the Google client', () => {
     expect(await unverified.profile('c')).toEqual({ sub: '1234', email: '', emailVerified: false });
   });
 });
+
+describe('R2 a password chosen before Google proved the address', () => {
+  it('R2 stops working once the owner signs in with Google, and its old sessions end', async () => {
+    // Somebody registers ana's address with a password before she ever uses the app.
+    const squatter = request.agent(app);
+    await squatter.post('/api/auth/signup').send({ email: 'ana@tu-sofia.bg', password: 'squatter-pass' }).expect(201);
+    // Ana signs in with Google, which has verified that the address is hers.
+    expect((await signInWithGoogle(request.agent(app), 'ana')).headers.location).toBe('/labs');
+    // Neither the squatter's session nor the password gets into ana's account any more.
+    await squatter.get('/api/auth/me').expect(401);
+    const res = await request(app).post('/api/auth/signin').send({ email: 'ana@tu-sofia.bg', password: 'squatter-pass' });
+    expect(res.status).toBe(401);
+    expect(res.body.error).toBe('Wrong email or password');
+  });
+});

@@ -2,7 +2,6 @@ const readline = require('node:readline');
 const fs = require('node:fs');
 const path = require('node:path');
 const { AppError } = require('../src/services/errors');
-const { localNow } = require('../src/services/labs');
 
 console.log = console.error;
 
@@ -74,7 +73,7 @@ const projectTools = [
     run: async () => {
       await caller();
       const { labService } = await services();
-      const { labs } = await labService.listWithSlots(localNow(new Date(), 'Europe/Sofia').date);
+      const { labs } = await labService.listWithSlots(labService.todayDate());
       return labs.map((lab) => `Lab ${lab.id}: ${lab.name}, room ${lab.room}, ${lab.capacity} seats`).join('\n') || 'There are no labs yet.';
     },
   },
@@ -95,7 +94,7 @@ const projectTools = [
       const { open, labs } = await labService.listWithSlots(date);
       if (!open) return `Labs are closed on ${date}. Pick a day from Monday to Friday.`;
       const lines = labs.filter((lab) => labId === undefined || lab.id === labId).map((lab) => {
-        const free = lab.slots.filter((slot) => slot.free && !slot.past).map((slot) => slot.label);
+        const free = lab.slots.filter((slot) => slot.bookable).map((slot) => slot.label);
         return `Lab ${lab.id}, ${lab.name} (room ${lab.room}): ${free.length ? free.join(', ') : 'no free slots'}`;
       });
       return lines.join('\n') || `There is no lab ${labId}.`;
