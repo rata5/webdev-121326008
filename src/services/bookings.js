@@ -13,7 +13,7 @@ function wholeNumber(value) {
 
 function createBookingService({ bookings, now = () => new Date(), timeZone = 'Europe/Sofia' }) {
   // AC-1 to AC-4, AC-18, AC-19
-  async function book(user, { labId, date, hour } = {}) {
+    async function book(user, { labId, date, hour } = {}) {
     const lab = wholeNumber(labId);
     const start = wholeNumber(hour);
     const day = parseDate(date);
@@ -30,15 +30,18 @@ function createBookingService({ bookings, now = () => new Date(), timeZone = 'Eu
     if (date < today.date || (date === today.date && start <= today.hour)) {
       throw new AppError('PAST_SLOT', 'You cannot book a past slot');
     }
-    // RULE AC-4: at most 3 upcoming bookings per user.
-    if ((await bookings.countUpcoming(user.id, today.date, today.hour)) >= MAX_UPCOMING) {
-      throw new AppError('TOO_MANY_BOOKINGS', `You can have at most ${MAX_UPCOMING} upcoming bookings`);
-    }
-    // RULE AC-2: one booking per lab and slot. The UNIQUE constraint decides, so two
-    // requests at the same moment cannot both win; insert() answers null to the loser.
-    const booking = await bookings.insert({ userId: user.id, labId: lab, date, hour: start });
-    if (!booking) throw new AppError('SLOT_TAKEN', 'This slot is already taken');
-    return booking;
+    // RULE AC-4: at most 3 upcoming bookings per user. Counting and inserting happen while the
+    // user's row is locked, so two bookings sent at the same moment cannot both pass the count.
+    return bookings.forUser(user.id, async (mine) => {
+      if ((await mine.countUpcoming(user.id, today.date, today.hour)) >= MAX_UPCOMING) {
+        throw new AppError('TOO_MANY_BOOKINGS', `You can have at most ${MAX_UPCOMING} upcoming bookings`);
+      }
+      // RULE AC-2: one booking per lab and slot. The UNIQUE constraint decides, so two
+      // requests at the same moment cannot both win; insert() answers null to the loser.
+      const booking = await mine.insert({ userId: user.id, labId: lab, date, hour: start });
+      if (!booking) throw new AppError('SLOT_TAKEN', 'This slot is already taken');
+      return booking;
+    });
   }
 
   // AC-5, AC-6, AC-18

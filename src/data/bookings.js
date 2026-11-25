@@ -7,6 +7,13 @@ function createBookingStore(db) {
   return {
     labExists: async (labId) => (await db.one('SELECT 1 FROM labs WHERE id = $1', [labId])) !== undefined,
 
+    // Runs fn(store) in one transaction that first locks this user's row, so two bookings by the
+    // same user wait for each other, and the second one counts the first.
+    forUser: (userId, fn) => db.transaction(async (tx) => {
+      await tx.query('SELECT id FROM users WHERE id = $1 FOR UPDATE', [userId]);
+      return fn(createBookingStore(tx));
+    }),
+
     // The new booking, or null when UNIQUE (lab_id, date, start_hour) refused it:
     // somebody else holds that slot, even if they got it a millisecond ago.
     async insert({ userId, labId, date, hour }) {

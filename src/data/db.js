@@ -19,7 +19,26 @@ function createDb(client) {
       return result.rowCount ?? result.affectedRows ?? 0;
     },
     // Several statements in one string, without parameters.
+        // Several statements in one string, without parameters.
     exec: (sql) => (client.exec ? client.exec(sql) : client.query(sql)),
+    // Runs fn(tx) as one transaction on one connection; tx has the same query, one and run.
+    // If fn throws, nothing it wrote is kept. PGlite has transaction() built in; a pg Pool
+    // lends out one connection for the whole transaction.
+    async transaction(fn) {
+      if (client.transaction) return client.transaction((tx) => fn(createDb(tx)));
+      const connection = await client.connect();
+      try {
+        await connection.query('BEGIN');
+        const result = await fn(createDb(connection));
+        await connection.query('COMMIT');
+        return result;
+      } catch (err) {
+        await connection.query('ROLLBACK');
+        throw err;
+      } finally {
+        connection.release();
+      }
+    },
     // Runs the migrations once. If the database was unreachable, the next call tries again.
     ready() {
       migrated ??= migrate(db).catch((err) => {
